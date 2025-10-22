@@ -1,6 +1,7 @@
 \documentclass[conference]{IEEEtran}
 \IEEEoverridecommandlockouts
 \usepackage{cite}
+\usepackage{natbib}
 \usepackage{amsmath,amssymb,amsfonts}
 \usepackage{algorithmic}
 \usepackage{graphicx}
@@ -79,8 +80,14 @@ The multimodal approach contained NDVI images while the previous approach did no
 
 The main gap of this study is that the focus was on identifying areas where a fire existed or not, the focus of our study will include predicting where the fire will likely spread. Another is that the study is specific to Greece's climate and land makeup, the aim of our study is to predict wildfire spread throughout the varying climates within the US. 
 
-\subsection{[Teammate Chelsey Placeholder]}
-To be added by Chelsey.
+\subsection{A high-resolution large-eddy simulation framework for wildland fire predictions using TensorFlow}
+Large-eddy simulation (LES) has become a foundational approach for modeling wildfire--atmosphere interactions over the past two decades. Early coupled fire--atmosphere systems, including FIRETEC \citep{linn2002firetec}, WFDS \citep{mell2009wildland}, and WRF-Fire \citep{coen2013wrf}, demonstrated that explicitly resolving buoyancy-driven turbulence, plume dynamics, and wind--fire feedbacks improves predictions of fire spread and convective behavior compared with empirical rate-of-spread models. These physics-based systems advanced understanding of multiscale interactions between the surface fire, lower atmosphere, and ambient wind fields \citep{sullivan2009wildland,bakhshaii2019review}. However, they were primarily implemented in legacy Fortran and C++ with MPI parallelization, which limits extensibility and compatibility with modern high-performance computing (HPC) frameworks.
+
+LES has since been widely used to investigate fireline intermittency \citep{pimont2021fireline}, entrainment and plume rise \citep{kochanski2013evaluation}, and fire behavior over complex terrain and heterogeneous fuels \citep{mueller2014modeling}. Previous studies suggest that grid resolutions between 0.5 m and 2 m are adequate for resolving dominant fire--atmosphere coupling processes \citep{hiers2020interactions}; however, applying such fine resolutions across landscape scales remains computationally intensive. Field validation efforts using experiments such as FireFlux I and II \citep{clements2007observing,canfield2014fireflux} have improved confidence in coupled fire--atmosphere modeling but also reveal persistent challenges related to unresolved combustion processes, fuel heterogeneity, and moisture dynamics.
+
+Recent reviews highlight methodological limitations that constrain the broader application of LES in wildland fire science \citep{bakhshaii2019review,linn2021conceptual}. Despite growth in computing capabilities, most existing wildfire LES frameworks do not leverage modern accelerator hardware such as GPUs and TPUs and lack integration with machine learning-oriented workflows. This hinders performance scaling and limits opportunities for data-driven parameter estimation, surrogate model development, and hybrid physics--ML approaches. Additionally, few studies have systematically examined how grid resolution affects global fire behavior metrics---such as rate of spread or heat release rate---compared to local turbulence characteristics, leaving a lack of practical guidance for efficiency versus accuracy trade-offs.
+
+The study by \citep{wang2023high} addresses several of these limitations by developing a TensorFlow-based LES wildfire simulation framework optimized for TPU acceleration, performing a resolution sensitivity analysis, and validating the system using the FireFlux II dataset. Nonetheless, important gaps remain. The framework is tested only in flat grassland environments, limiting relevance to complex landscapes with variable fuel loading and topography. Its combustion model uses a prescribed volumetric heat source rather than explicit pyrolysis, restricting physical realism and the ability to simulate fuel moisture effects. Validation is currently limited to a single experimental dataset, which prevents generalization across ecological fuel types. Furthermore, the model does not incorporate realistic atmospheric boundary layer evolution, including diurnal transitions and wind shear, which strongly influence fire behavior. Finally, although the TensorFlow implementation shows promise for scalability and future machine learning integration, it has not yet been adapted for real-time fire prediction or operational decision support.
 
 \subsection{Synthesis and Gaps}
 Known: short-horizon spread can be modeled with CNN segmentation; wind and surface or fuels are dominant; uncertainty aids decision-making. Gaps we target: (i) empirical value of fuel embeddings at 500 m; (ii) feature-family importance on CONUS-West; (iii) robustness under high wind and in WUI; (iv) simple score calibration.
@@ -115,15 +122,71 @@ E4 Calibration: tune threshold for high-precision versus high-recall operating p
 Reproducibility: fixed seeds, saved configs, single-change ablations, basic run tracking.
 
 \begin{thebibliography}{00}
-\bibitem{shadrin2024scientificreports}
-D.~Shadrin, S.~Illarionova, F.~Gubanov, K.~Evteeva, M.~Mironenko, I.~Levchunets, R.~Belousov, and E.~Burnaev, ``Wildfire spreading prediction using multimodal data and deep neural network approach,'' \emph{Scientific Reports}, vol.~14, no.~2606, 2024. DOI: \url{https://doi.org/10.1038/s41598-024-52821-x}.
+\bibitem{linn2002firetec}
+R.~R. Linn, J.~M. Reisner, J.~J. Colman, and J.~Winterkamp,
+``FIRETEC: A physics-based model for coupled fire--atmosphere interaction,''
+\emph{International Journal of Wildland Fire}, vol.~11, no.~4, pp.~233--246, 2002. DOI: \url{https://doi.org/10.1071/WF02006}.
 
-\bibitem{hulsey2024mndws}
-G.~Hulsey, ``Modified Next Day Wildfire Spread (mNDWS),'' Kaggle Dataset, Sep.~2024. \url{https://www.kaggle.com/datasets/georgehulsey/modified-next-day-wildfire-spread}.
+\bibitem{mell2009wildland}
+W.~Mell, S.~L. Manzello, A.~Maranghides, D.~Butry, and R.~G. Rehm,
+``The wildland--urban interface fire problem: Current approaches and research needs,''
+\emph{International Journal of Wildland Fire}, vol.~19, no.~2, pp.~238--251, 2009. DOI: \url{https://doi.org/10.1071/WF07131}.
 
-\bibitem{papakis2025AMultimodalEnsembleDeepLearning}
-I.~Papakis, V.~Linardos, and M.~Drakaki, ``A Multimodal Ensemble Deep Learning Model for Wildfire Prediction in Greece Using Satellite Imagery and Multi-Source Remote Sensing Data,''
-\emph{Remote Sensing}, 17, no.~ 19: 3310,  2025. DOI: \url{https://doi.org/10.3390/rs17193310}.
+\bibitem{coen2013wrf}
+J.~L. Coen, M.~Cameron, J.~Michalakes, E.~G. Patton, P.~J. Riggan, and K.~Yedinak,
+``WRF-Fire: Coupled weather--wildland fire modeling with the Weather Research and Forecasting model,''
+\emph{Journal of Applied Meteorology and Climatology}, vol.~52, no.~1, pp.~16--38, 2013. DOI: \url{https://doi.org/10.1175/JAMC-D-12-023.1}.
+
+\bibitem{sullivan2009wildland}
+A.~L. Sullivan,
+``Wildland fire behaviour modelling: Review of models, evaluation, and applications,''
+\emph{International Journal of Wildland Fire}, vol.~18, no.~4, pp.~369--386, 2009. DOI: \url{https://doi.org/10.1071/WF06143}.
+
+\bibitem{bakhshaii2019review}
+A.~Bakhshaii and E.~A. Johnson,
+``A review of wildland fire spread modelling, 1990--2019,''
+\emph{International Journal of Wildland Fire}, vol.~28, no.~11, pp.~827--842, 2019. DOI: \url{https://doi.org/10.1071/WF19002}.
+
+\bibitem{pimont2021fireline}
+F.~Pimont \emph{et al.},
+``Fireline intensity of spreading wildfires: Variability and multiplicative structure,''
+\emph{International Journal of Wildland Fire}, vol.~30, no.~1, pp.~1--14, 2021. DOI: \url{https://doi.org/10.1071/WF19133}.
+
+\bibitem{kochanski2013evaluation}
+A.~K. Kochanski, M.~A. Jenkins, J.~Mandel, J.~D. Beezley, C.~B. Clements, and S.~Krueger,
+``Evaluation of WRF-Sfire performance with field observations from the FireFlux experiment,''
+\emph{Geoscientific Model Development}, vol.~6, no.~3, pp.~1109--1126, 2013. DOI: \url{https://doi.org/10.5194/gmd-6-1109-2013}.
+
+\bibitem{mueller2014modeling}
+E.~V. Mueller, R.~R. Linn, J.~Winterkamp, and C.~H. Sieg,
+``Modeling crown fire behavior in complex terrain using coupled fire--atmosphere models,''
+\emph{Forest Science}, vol.~60, no.~4, pp.~781--792, 2014. DOI: \url{https://doi.org/10.5849/forsci.13-100}.
+
+\bibitem{hiers2020interactions}
+J.~K. Hiers, J.~J. O’Brien, J.~M. Varner \emph{et al.},
+``Interactions between fire and atmosphere in wildland fire spread,''
+\emph{Forest Ecology and Management}, vol.~475, p.~118373, 2020. DOI: \url{https://doi.org/10.1016/j.foreco.2020.118373}.
+
+\bibitem{clements2007observing}
+C.~B. Clements, S.~Zhong, S.~Goodrick \emph{et al.},
+``Observing the dynamics of wildland grass fires: FireFlux---A field validation experiment,''
+\emph{Bulletin of the American Meteorological Society}, vol.~88, no.~9, pp.~1369--1382, 2007. DOI: \url{https://doi.org/10.1175/BAMS-88-9-1369}.
+
+\bibitem{canfield2014fireflux}
+J.~M. Canfield, C.~B. Clements, S.~Zhong, S.~Goodrick, and S.~Li,
+``FireFlux II: An evaluation of plume and fire behavior in grass fires,''
+\emph{International Journal of Wildland Fire}, vol.~23, no.~9, pp.~1163--1174, 2014. DOI: \url{https://doi.org/10.1071/WF12190}.
+
+\bibitem{linn2021conceptual}
+R.~R. Linn, J.~M. Canfield, F.~Pimont \emph{et al.},
+``A conceptual framework for coupled fire--atmosphere modeling,''
+\emph{International Journal of Wildland Fire}, vol.~30, no.~8, pp.~593--608, 2021. DOI: \url{https://doi.org/10.1071/WF20132}.
+
+\bibitem{wang2023high}
+Z.~Wang, C.~M. Hoffman, R.~Kooper, R.~M. Hadden, A.~Simeoni, and W.~T. Scherer,
+``A high-resolution large-eddy simulation framework for wildland fire prediction using TensorFlow,''
+\emph{International Journal of Wildland Fire}, vol.~32, no.~12, pp.~1711--1725, 2023. DOI: \url{https://doi.org/10.1071/WF23084}.
+
 
 \end{thebibliography}
 
