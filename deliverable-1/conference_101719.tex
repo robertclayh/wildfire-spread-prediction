@@ -13,7 +13,7 @@
     T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
 \begin{document}
 
-\title{Next-Day Wildfire Spread Prediction on mNDWS (CONUS-West)\\
+\title{Next-Day Wildfire Spread Prediction on mNDWS\\
 {\footnotesize A concise proposal aligned to DS6050 Deliverable \#1 by Project Group 4}
 }
 
@@ -87,7 +87,9 @@ Ablation experiments identify wind and land-cover variables as the most influent
 This paper provides a practical reference for our project. Its design of a multimodal tensor, short prediction horizon, and attention-based encoder–decoder architecture aligns closely with our goals for mNDWS. In our case, we will adapt this approach to the continental United States west of the 100th meridian at 500 m resolution, incorporating additional covariates available in mNDWS such as the latent fuel embeddings. Following Shadrin et al., we will include feature-group ablations to assess the marginal contribution of wind, fuels, vegetation, and topography, enabling a transparent baseline for next-day spread prediction.
 
 \subsection{Synthesis and Gaps}
-Known: short-horizon spread can be modeled with CNN segmentation; wind and surface or fuels are dominant; uncertainty aids decision-making. Gaps we target: (i) empirical value of fuel embeddings at 500 m; (ii) feature-family importance on CONUS-West; (iii) robustness under high wind and in WUI; (iv) simple score calibration.
+Prior work demonstrates that short-horizon wildfire spread can be effectively modeled using convolutional encoder–decoder architectures applied to multimodal geospatial inputs. Shadrin et al. \cite{shadrin2024scientificreports} showed that models such as MA-Net can capture spatial fire dynamics over daily time steps, with wind and surface characteristics emerging as the most influential predictors. Other studies highlight the potential of combining diverse data sources, including fuels, vegetation indices, and topography, to improve generalization across regions.
+
+Several gaps remain. First, the empirical value of the latent fuel embeddings introduced in mNDWS has not yet been established at 500 m resolution. Second, prior evaluations have been geographically limited, leaving uncertainty about how feature importance and model performance vary across the broader CONUS-West domain. Third, robustness under challenging conditions such as high winds and wildland–urban interface (WUI) areas has received little systematic study. Addressing these gaps will help clarify how multimodal models generalize and which features most reliably drive spread prediction in operational contexts.
 
 \section{Proposed Method: Initial Approach}
 Task: next-day binary segmentation on $H\times W$ tiles (mNDWS tile size), predicting burn or no-burn.
@@ -108,26 +110,23 @@ Interpretability: feature-family ablations by removing Wind, Fuels, Vegetation a
 Uncertainty: calibrate the score threshold on validation (precision–recall tradeoff) and report reliability curves.
 
 \section{Experiments: Evaluation Plan}
-E1 Baselines: compare logistic regression, shallow CNN, and U-Net. Metrics: F1 (micro-imagewise), IoU, precision/recall, PR curves. Report parameter count and rough training/inference time.
 
-E2 Ablations: remove one feature family at a time; record performance deltas. Hypothesis: removing wind yields the largest degradation; fuels provide incremental gain.
+\begin{enumerate}
+    \item \text{Baselines:} Compare logistic regression, a shallow CNN, and a U-Net. Evaluate using F1 (micro, imagewise), Intersection-over-Union (IoU), precision, recall, and precision–recall curves. Report parameter count and approximate training and inference times.
 
-E3 Robustness slices: stratify by wind\_75 quartiles; impervious percentage (as a WUI proxy); coarse ecoregion or elevation bands if available.
+    \item \text{Feature Ablations:} Remove one feature family at a time and record performance deltas. Hypothesis: removing wind will cause the largest degradation, while fuels provide incremental gain.
 
-E4 Calibration: tune threshold for high-precision versus high-recall operating points and show calibration or reliability.
+    \item \text{Robustness Slices:} Stratify results by \texttt{wind\_75} quartiles, impervious percentage (as a wildland–urban interface proxy), and coarse ecoregion or elevation bands if available.
 
-Reproducibility: fixed seeds, saved configs, single-change ablations, basic run tracking.
+    \item \text{Calibration and Thresholding:} Tune classification thresholds for high-precision versus high-recall operating points, and examine reliability or calibration curves.
+\end{enumerate}
+
+\noindent\text{Reproducibility:} Fix random seeds, save configurations, apply single-change ablations, and maintain basic run tracking for all experiments.
 
 \begin{thebibliography}{00}
-\bibitem{shadrin2024scientificreports}
-D.~Shadrin, S.~Illarionova, F.~Gubanov, K.~Evteeva, M.~Mironenko, I.~Levchunets, R.~Belousov, and E.~Burnaev, ``Wildfire spreading prediction using multimodal data and deep neural network approach,'' \emph{Scientific Reports}, vol.~14, no.~2606, 2024. DOI: \url{https://doi.org/10.1038/s41598-024-52821-x}.
 
 \bibitem{hulsey2024mndws}
 G.~Hulsey, ``Modified Next Day Wildfire Spread (mNDWS),'' Kaggle Dataset, Sep.~2024. \url{https://www.kaggle.com/datasets/georgehulsey/modified-next-day-wildfire-spread}.
-
-\bibitem{papakis2025AMultimodalEnsembleDeepLearning}
-I.~Papakis, V.~Linardos, and M.~Drakaki, ``A Multimodal Ensemble Deep Learning Model for Wildfire Prediction in Greece Using Satellite Imagery and Multi-Source Remote Sensing Data,''
-\emph{Remote Sensing}, 17, no.~ 19: 3310,  2025. DOI: \url{https://doi.org/10.3390/rs17193310}.
 
 \bibitem{linn2002firetec}
 R.~R. Linn, J.~M. Reisner, J.~J. Colman, and J.~Winterkamp,
@@ -193,6 +192,15 @@ R.~R. Linn, J.~M. Canfield, F.~Pimont \emph{et al.},
 Z.~Wang, C.~M. Hoffman, R.~Kooper, R.~M. Hadden, A.~Simeoni, and W.~T. Scherer,
 ``A high-resolution large-eddy simulation framework for wildland fire prediction using TensorFlow,''
 \emph{International Journal of Wildland Fire}, vol.~32, no.~12, pp.~1711--1725, 2023. DOI: \url{https://doi.org/10.1071/WF23084}.
+
+\bibitem{papakis2025AMultimodalEnsembleDeepLearning}
+I.~Papakis, V.~Linardos, and M.~Drakaki, ``A Multimodal Ensemble Deep Learning Model for Wildfire Prediction in Greece Using Satellite Imagery and Multi-Source Remote Sensing Data,''
+\emph{Remote Sensing}, 17, no.~ 19: 3310,  2025. DOI: \url{https://doi.org/10.3390/rs17193310}.
+
+\bibitem{shadrin2024scientificreports}
+D.~Shadrin, S.~Illarionova, F.~Gubanov, K.~Evteeva, M.~Mironenko, I.~Levchunets, R.~Belousov, and E.~Burnaev, ``Wildfire spreading prediction using multimodal data and deep neural network approach,'' \emph{Scientific Reports}, vol.~14, no.~2606, 2024. DOI: \url{https://doi.org/10.1038/s41598-024-52821-x}.
+
+
 
 
 \end{thebibliography}
