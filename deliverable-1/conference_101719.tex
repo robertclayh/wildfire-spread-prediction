@@ -66,7 +66,7 @@ LES has since been widely used to investigate fireline intermittency \citep{pimo
 
 Recent reviews highlight methodological limitations that constrain the broader application of LES in wildland fire science \citep{bakhshaii2019review,linn2021conceptual}. Despite growth in computing capabilities, most existing wildfire LES frameworks do not leverage modern accelerator hardware such as GPUs and TPUs and lack integration with machine learning-oriented workflows. This hinders performance scaling and limits opportunities for data-driven parameter estimation, surrogate model development, and hybrid physics--ML approaches. Additionally, few studies have systematically examined how grid resolution affects global fire behavior metrics---such as rate of spread or heat release rate---compared to local turbulence characteristics, leaving a lack of practical guidance for efficiency versus accuracy trade-offs.
 
-The study by \citep{wang2023high} addresses several of these limitations by developing a TensorFlow-based LES wildfire simulation framework optimized for TPU acceleration, performing a resolution sensitivity analysis, and validating the system using the FireFlux II dataset. Nonetheless, important gaps remain. The framework is tested only in flat grassland environments, limiting relevance to complex landscapes with variable fuel loading and topography. Its combustion model uses a prescribed volumetric heat source rather than explicit pyrolysis, restricting physical realism and the ability to simulate fuel moisture effects. Validation is currently limited to a single experimental dataset, which prevents generalization across ecological fuel types. Furthermore, the model does not incorporate realistic atmospheric boundary layer evolution, including diurnal transitions and wind shear, which strongly influence fire behavior. Finally, although the TensorFlow implementation shows promise for scalability and future machine learning integration, it has not yet been adapted for real-time fire prediction or operational decision support.
+The study by Wang et al. \citep{wang2023high} addresses several of these limitations by developing a TensorFlow-based LES wildfire simulation framework optimized for TPU acceleration, performing a resolution sensitivity analysis, and validating the system using the FireFlux II dataset. Nonetheless, important gaps remain. The framework is tested only in flat grassland environments, limiting relevance to complex landscapes with variable fuel loading and topography. Its combustion model uses a prescribed volumetric heat source rather than explicit pyrolysis, restricting physical realism and the ability to simulate fuel moisture effects. Validation is currently limited to a single experimental dataset, which prevents generalization across ecological fuel types. Furthermore, the model does not incorporate realistic atmospheric boundary layer evolution, including diurnal transitions and wind shear, which strongly influence fire behavior. Finally, although the TensorFlow implementation shows promise for scalability and future machine learning integration, it has not yet been adapted for real-time fire prediction or operational decision support.
 
 A study by Papakis et al. \ \cite{papakis2025AMultimodalEnsembleDeepLearning}  adds a number of factors that identify the lack of realistic atmospheric fire influence from the previous study. This study focused on correctly classifying wildfires in Greece. It merged topographic, satellite, vegetation and meteorological factors from several data sources, including normalized vegetation index (NDVI) imagery data, Visible Infrared Imaging Radiometer Suite (VIIRS) fire data, and other imagery data sources. The overall goal of the model is to explore different prediction approaches and find a method that correctly classifies wildfires most accurately.
 
@@ -92,36 +92,36 @@ Prior work demonstrates that short-horizon wildfire spread can be effectively mo
 Several gaps remain. First, the empirical value of the latent fuel embeddings introduced in mNDWS has not yet been established at 500 m resolution. Second, prior evaluations have been geographically limited, leaving uncertainty about how feature importance and model performance vary across the broader CONUS-West domain. Third, robustness under challenging conditions such as high winds and wildland–urban interface (WUI) areas has received little systematic study. Addressing these gaps will help clarify how multimodal models generalize and which features most reliably drive spread prediction in operational contexts.
 
 \section{Proposed Method: Initial Approach}
-Task: next-day binary segmentation on $H\times W$ tiles (mNDWS tile size), predicting burn or no-burn.
+\textbf{Task:} next-day binary segmentation on $H\times W$ tiles (mNDWS tile size), predicting burn or no-burn.
 
-Baselines:
+\textbf{Baselines:}
 \begin{enumerate}
     \item Logistic regression per-pixel on tabular features (regularized).
     \item Shallow CNN without skip connections.
     \item Compact U-Net with a lightweight encoder (e.g., ResNet-18).
 \end{enumerate}
 
-Inputs: mNDWS channels (NDVI; ERC/BI/CHILI; precipitation, temperature, and wind aggregates including direction; elevation; fuel1--3; impervious and water). Normalize using provided statistics.
+\textbf{Inputs:} mNDWS channels (NDVI; ERC/BI/CHILI; precipitation, temperature, and wind aggregates including direction; elevation; fuel1--3; impervious and water). Normalize using provided statistics.
 
-Class imbalance: focal plus Dice or weighted BCE plus Dice; early stopping on validation F1.
+\textbf{Class imbalance:} focal plus Dice or weighted BCE plus Dice; early stopping on validation F1.
 
-Interpretability: feature-family ablations by removing Wind, Fuels, Vegetation and Drought, or Topography to measure changes in F1 and IoU.
+\textbf{Interpretability:} feature-family ablations by removing Wind, Fuels, Vegetation and Drought, or Topography to measure changes in F1 and IoU.
 
-Uncertainty: calibrate the score threshold on validation (precision–recall tradeoff) and report reliability curves.
+\textbf{Uncertainty:} calibrate the score threshold on validation (precision–recall tradeoff) and report reliability curves.
 
 \section{Experiments: Evaluation Plan}
 
 \begin{enumerate}
-    \item \text{Baselines:} Compare logistic regression, a shallow CNN, and a U-Net. Evaluate using F1 (micro, imagewise), Intersection-over-Union (IoU), precision, recall, and precision–recall curves. Report parameter count and approximate training and inference times.
+    \item \textbf{Baselines:} Compare logistic regression, a shallow CNN, and a U-Net. Evaluate using F1 (micro, imagewise), Intersection-over-Union (IoU), precision, recall, and precision–recall curves. Report parameter count and approximate training and inference times.
 
-    \item \text{Feature Ablations:} Remove one feature family at a time and record performance deltas. Hypothesis: removing wind will cause the largest degradation, while fuels provide incremental gain.
+    \item \textbf{Feature Ablations:} Remove one feature family at a time and record performance deltas. Hypothesis: removing wind will cause the largest degradation, while fuels provide incremental gain.
 
-    \item \text{Robustness Slices:} Stratify results by \texttt{wind\_75} quartiles, impervious percentage (as a wildland–urban interface proxy), and coarse ecoregion or elevation bands if available.
+    \item \textbf{Robustness Slices:} Stratify results by \texttt{wind\_75} quartiles, impervious percentage (as a wildland–urban interface proxy), and coarse ecoregion or elevation bands if available.
 
-    \item \text{Calibration and Thresholding:} Tune classification thresholds for high-precision versus high-recall operating points, and examine reliability or calibration curves.
+    \raggedright\item \textbf{Calibration and Thresholding:} Tune classification thresholds for high-precision versus high-recall operating points, and examine reliability or calibration curves.
 \end{enumerate}
 
-\noindent\text{Reproducibility:} Fix random seeds, save configurations, apply single-change ablations, and maintain basic run tracking for all experiments.
+\noindent\textbf{Reproducibility:} Fix random seeds, save configurations, apply single-change ablations, and maintain basic run tracking for all experiments.
 
 \begin{thebibliography}{00}
 
