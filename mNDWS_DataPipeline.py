@@ -31,6 +31,11 @@ set_seed(1337)
 
 device   = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 use_cuda = torch.cuda.is_available()
+# Enable cuDNN autotuner to pick the best convolution algorithms on this hardware
+try:
+    torch.backends.cudnn.benchmark = True
+except Exception:
+    pass
 print("Device:", device)
 
 
@@ -409,10 +414,24 @@ def make_loader(ds, batch_size=16, upweight_positive=False, shuffle=False):
             except Exception:
                 weights.append(1.0)
         sampler = WeightedRandomSampler(weights, num_samples=len(weights), replacement=True)
-        return DataLoader(ds, batch_size=batch_size, sampler=sampler,
-                          num_workers=0, pin_memory=use_cuda, persistent_workers=False)
-    return DataLoader(ds, batch_size=batch_size, shuffle=shuffle,
-                      num_workers=0, pin_memory=use_cuda, persistent_workers=False)
+        return DataLoader(
+            ds,
+            batch_size=batch_size,
+            sampler=sampler,
+            num_workers=4,
+            pin_memory=use_cuda,
+            persistent_workers=True,
+            prefetch_factor=2,
+        )
+    return DataLoader(
+        ds,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        num_workers=4,
+        pin_memory=use_cuda,
+        persistent_workers=True,
+        prefetch_factor=2,
+    )
 
 train_loader = make_loader(train_ds, batch_size=16, upweight_positive=True)
 val_loader   = make_loader(val_ds,   batch_size=16)
