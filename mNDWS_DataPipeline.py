@@ -7,9 +7,9 @@
 # =========================================================
 # 0) Setup (Colab installs) + Utilities
 # =========================================================
-get_ipython().system('pip -q install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu121')
-get_ipython().system('pip -q install numpy pandas scikit-learn einops tqdm')
-get_ipython().system('pip -q install kagglehub tensorflow')
+# get_ipython().system('pip -q install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu121')
+# get_ipython().system('pip -q install numpy pandas scikit-learn einops tqdm')
+# get_ipython().system('pip -q install kagglehub tensorflow')
 
 import os, math, random, glob
 from dataclasses import dataclass
@@ -29,13 +29,20 @@ def set_seed(seed=1337):
     torch.manual_seed(seed); torch.cuda.manual_seed_all(seed)
 set_seed(1337)
 
-device   = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-use_cuda = torch.cuda.is_available()
-# Enable cuDNN autotuner to pick the best convolution algorithms on this hardware
-try:
-    torch.backends.cudnn.benchmark = True
-except Exception:
-    pass
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+    # Enable cuDNN autotuner only when CUDA is active
+    try:
+        torch.backends.cudnn.benchmark = True
+    except Exception:
+        pass
+elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+    device = torch.device("mps")
+else:
+    device = torch.device("cpu")
+
+use_cuda = device.type == "cuda"
+use_mps = device.type == "mps"
 print("Device:", device)
 
 
@@ -492,4 +499,3 @@ def compute_channel_stats(ds, n_max_samples=None, batch_size=32):
 meanC, stdC = compute_channel_stats(train_ds, n_max_samples=2000, batch_size=32)
 meanC, stdC = meanC.to(device), stdC.to(device)
 meanC.shape, stdC.shape, train_ds.channels
-
