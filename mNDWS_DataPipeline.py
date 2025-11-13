@@ -11,7 +11,7 @@
 # get_ipython().system('pip -q install numpy pandas scikit-learn einops tqdm')
 # get_ipython().system('pip -q install kagglehub tensorflow')
 
-import os, math, random, glob
+import os, math, random, glob, sys
 from dataclasses import dataclass
 import numpy as np
 import pandas as pd
@@ -23,6 +23,15 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 
 from sklearn.metrics import average_precision_score, precision_recall_curve
+
+_suppress_init_logs = os.environ.get("MNDWS_PIPELINE_SILENT", "").lower() in {"1","true","yes","y"}
+_already_logged_init = getattr(sys.modules[__name__], "_MNDWS_PIPELINE_LOGGED", False)
+_should_log_init = (not _suppress_init_logs) and (not _already_logged_init)
+sys.modules[__name__]._MNDWS_PIPELINE_LOGGED = True
+
+def _log_init(msg: str):
+    if _should_log_init:
+        print(msg)
 
 def set_seed(seed=1337):
     random.seed(seed); np.random.seed(seed)
@@ -43,7 +52,7 @@ else:
 
 use_cuda = device.type == "cuda"
 use_mps = device.type == "mps"
-print("Device:", device)
+_log_init(f"Device: {device}")
 
 
 # In[2]:
@@ -76,7 +85,7 @@ def pick_npz_root(subdir="wildfire_npz_tiles_mndws_v1"):
     raise RuntimeError("Could not create NPZ root in any candidate location")
 
 NPZ_ROOT = pick_npz_root()
-print("NPZ_ROOT ->", NPZ_ROOT)
+_log_init(f"NPZ_ROOT -> {NPZ_ROOT}")
 
 def have_npz(root):
     return len(glob.glob(os.path.join(root, "*.npz"))) > 0
@@ -263,7 +272,7 @@ if not have_npz(NPZ_ROOT):
     print(f"Converted {converted} tiles → {NPZ_ROOT}")
     print(f"Skipped (no masks): {skipped_missing_masks}")
 else:
-    print(f"Using existing NPZ tiles at {NPZ_ROOT} (found {len(glob.glob(os.path.join(NPZ_ROOT, '*.npz')))} files)")
+    _log_init(f"Using existing NPZ tiles at {NPZ_ROOT} (found {len(glob.glob(os.path.join(NPZ_ROOT, '*.npz')))} files)")
 
 
 # In[3]:
