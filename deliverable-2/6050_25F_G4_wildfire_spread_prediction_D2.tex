@@ -1,0 +1,187 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+\usepackage{cite}
+\usepackage{natbib}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{url}
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+\begin{document}
+
+\title{Next-Day Wildfire Spread Prediction on mNDWS\\
+{\footnotesize A concise proposal aligned to DS6050 Deliverable \#1 by Project Group 4}
+}
+
+\author{
+\IEEEauthorblockN{Robert Clay Harris, Hannah Richardson, and Chelsey Blowe}
+\IEEEauthorblockA{School of Data Science, University of Virginia\\
+\{jbm2rt, zhx9yf, qck2qg\}@virginia.edu}
+}
+
+
+\maketitle
+
+\section{Introduction}
+Wildfire spread forecasts inform evacuations, resource allocation, and risk communication. While physics-based simulators can be accurate, they require detailed configuration and are costly to run at regional scale. Traditional fire danger indices rely on fixed formulas and cannot capture nonlinear interactions among fuels, wind, and drought. We target a practical question: which 500 m pixels will burn tomorrow? Our objectives are: (i) a clear, reproducible baseline; (ii) insight into which feature families drive performance; (iii) evaluation of robustness under challenging conditions such as high winds and wildland–urban interface areas; and (iv) calibrated decision thresholds usable by practitioners.
+
+Our study addresses the following research questions:
+\begin{itemize}
+    \item RQ1: How well can a multimodal model predict next-day burned pixels at 500 m?
+    \item RQ2: Which feature families (wind, fuels, vegetation/drought, topography) contribute most?
+    \item RQ3: How robust is performance under high wind and in WUI (impervious) areas?
+    \item RQ4: Can calibrated uncertainty improve operational thresholding?
+\end{itemize}
+
+\section{Literature Survey}
+Applying deep learning models to classify and predict wildfires has become increasingly popular to aid in wildfire relief efforts. Large-eddy simulation (LES) has become a foundational approach for modeling wildfire--atmosphere interactions over the past two decades. Early coupled fire--atmosphere systems, including FIRETEC \citep{linn2002firetec}, WFDS \citep{mell2009wildland}, and WRF-Fire \citep{coen2013wrf}, demonstrated that explicitly resolving buoyancy-driven turbulence, plume dynamics, and wind--fire feedbacks improves predictions of fire spread and convective behavior compared with empirical rate-of-spread models. These physics-based systems advanced understanding of multiscale interactions between the surface fire, lower atmosphere, and ambient wind fields \citep{sullivan2009wildland,bakhshaii2019review}. However, they were primarily implemented in legacy Fortran and C++ with MPI parallelization, which limits extensibility and compatibility with modern high-performance computing (HPC) frameworks.
+
+LES has since been widely used to investigate fireline intermittency \citep{pimont2021fireline}, entrainment and plume rise \citep{kochanski2013evaluation}, and fire behavior over complex terrain and heterogeneous fuels \citep{mueller2014modeling}. Previous studies suggest that grid resolutions between 0.5 m and 2 m are adequate for resolving dominant fire--atmosphere coupling processes \citep{hiers2020interactions}; however, applying such fine resolutions across landscape scales remains computationally intensive. Field validation efforts using experiments such as FireFlux I and II \citep{clements2007observing,canfield2014fireflux} have improved confidence in coupled fire--atmosphere modeling but also reveal persistent challenges related to unresolved combustion processes, fuel heterogeneity, and moisture dynamics.
+
+Recent reviews highlight methodological limitations that constrain the broader application of LES in wildland fire science \citep{bakhshaii2019review,linn2021conceptual}. Despite growth in computing capabilities, most existing wildfire LES frameworks do not leverage modern accelerator hardware such as GPUs and TPUs and lack integration with machine learning-oriented workflows. This hinders performance scaling and limits opportunities for data-driven parameter estimation, surrogate model development, and hybrid physics--ML approaches. Additionally, few studies have systematically examined how grid resolution affects global fire behavior metrics---such as rate of spread or heat release rate---compared to local turbulence characteristics, leaving a lack of practical guidance for efficiency versus accuracy trade-offs.
+
+The study by Wang et al. \citep{wang2023high} addresses several of these limitations by developing a TensorFlow-based LES wildfire simulation framework optimized for TPU acceleration, performing a resolution sensitivity analysis, and validating the system using the FireFlux II dataset. Nonetheless, important gaps remain. The framework is tested only in flat grassland environments, limiting relevance to complex landscapes with variable fuel loading and topography. Its combustion model uses a prescribed volumetric heat source rather than explicit pyrolysis, restricting physical realism and the ability to simulate fuel moisture effects. Validation is currently limited to a single experimental dataset, which prevents generalization across ecological fuel types. Furthermore, the model does not incorporate realistic atmospheric boundary layer evolution, including diurnal transitions and wind shear, which strongly influence fire behavior. Finally, although the TensorFlow implementation shows promise for scalability and future machine learning integration, it has not yet been adapted for real-time fire prediction or operational decision support.
+
+A study by Papakis et al.\ \cite{papakis2025AMultimodalEnsembleDeepLearning} adds a number of factors that identify the lack of realistic atmospheric fire influence from the previous study. This study focused on correctly classifying wildfires in Greece. It merged topographic, satellite, vegetation, and meteorological factors from several data sources, including normalized vegetation index (NDVI) imagery data, Visible Infrared Imaging Radiometer Suite (VIIRS) fire data, and other imagery data sources. The overall goal of the model is to explore different prediction approaches and find a method that correctly classifies wildfires most accurately.
+
+Two different approaches were explored; the first only included numerical features (no imagery data) and the second was a multimodal approach. Both of these approaches were trained twice, once with a Daynight feature and once without. This feature was used to indicate whether the data used was from the day or night. The importance of including this feature was determined to be influential in predicting wildfires.
+
+The non multimodal numerical features approach analyzed long short term memory (LSTM) networks, 1D convolutional neural networks (CNNs), and ensemble models during training. These three models were selected due to their architectures being well-suited to time series classification \cite{papakis2025AMultimodalEnsembleDeepLearning}. The ensemble model was a combination of the LSTM and CNN models with the goal of reducing bias. The LSTM model performed best with a 90\% accuracy.
+
+The multimodal approach contained NDVI images while the previous approach did not. CNN was used for image processing, and a multilayer perceptron (MLP) was used to process numerical features. Multimodal fusion combines \cite{papakis2025AMultimodalEnsembleDeepLearning} pre-processed images and numerical features using a combination of batch normalization, ReLU, and softmax activation. The multimodal training explored the performance of stochastic gradient descent (SGD) with step decay, AdamW with cosine annealing, AdamW with exponential decay, and SGD with aggressive step decay to determine the best parameters. The SGD with step decay performed the best with a 96.15\% accuracy.
+
+The main gap of this study is that the focus was on identifying areas where a fire existed or not, whereas the focus of our study will include predicting where the fire will likely spread. Another gap is that the study is specific to Greece's climate and land makeup; the aim of our study is to predict wildfire spread throughout the varying climates within the United States. A study by Shadrin et al.\ \cite{shadrin2024scientificreports} addresses these gaps by introducing another country of study as well as predictive metrics.
+
+The study proposes a deep learning approach for short-term wildfire spread prediction using multimodal remote-sensing and meteorological data. The study focuses on several fire-prone regions in Russia and frames the task as a pixel-level segmentation problem, predicting which areas will be affected by fire one to five days after ignition. Each sample is represented as a small raster window centered on an ignition point that combines static geospatial variables such as land cover, topography, and population density with daily weather fields derived from ERA5. The resulting input tensor contains multiple stacked channels, enabling spatial models to capture interactions between terrain, fuels, and meteorological drivers of spread.
+
+Several encoder–decoder architectures are evaluated, including U-Net, U-Net++, DeepLabV3, and MA-Net, each trained using cross-entropy and Dice-based losses. MA-Net achieves the best overall performance, with F1 scores around 0.64–0.68 for one- to five-day horizons. The model demonstrates that spatial attention mechanisms can modestly improve the delineation of burned perimeters, particularly under variable wind conditions. Evaluation metrics also include mean absolute error in burned area and a spread-velocity estimate based on the distance from the ignition to the predicted fire front.
+
+Ablation experiments identify wind and land-cover variables as the most influential feature groups. Removing wind inputs leads to the largest drop in performance, reducing F1 to approximately 0.51, while the absence of land-cover layers produces a smaller but still significant effect. The authors conclude that multimodal representations combining static surface data with dynamic weather fields are essential for accurate spread modeling. They also note that generalization to new ecoregions is limited without regional retraining, underscoring the importance of spatially diverse data.
+
+This paper provides a practical reference for our project. Its design of a multimodal tensor, short prediction horizon, and attention-based encoder–decoder architecture aligns closely with our goals for mNDWS. In our case, we will adapt this approach to the continental United States west of the 100th meridian at 500 m resolution, incorporating additional covariates available in mNDWS such as the latent fuel embeddings. Following Shadrin et al., we will include feature-group ablations to assess the marginal contribution of wind, fuels, vegetation, and topography, enabling a transparent baseline for next-day spread prediction.
+
+\subsection{Synthesis and Gaps}
+Prior work demonstrates that short-horizon wildfire spread can be effectively modeled using convolutional encoder–decoder architectures applied to multimodal geospatial inputs. Shadrin et al. \cite{shadrin2024scientificreports} showed that models such as MA-Net can capture spatial fire dynamics over daily time steps, with wind and surface characteristics emerging as the most influential predictors. Other studies highlight the potential of combining diverse data sources, including fuels, vegetation indices, and topography, to improve generalization across regions.
+
+Several gaps remain. First, the empirical value of the latent fuel embeddings introduced in mNDWS has not yet been established at 500 m resolution. Second, prior evaluations have been geographically limited, leaving uncertainty about how feature importance and model performance vary across the broader CONUS-West domain. Third, robustness under challenging conditions such as high winds and wildland–urban interface (WUI) areas has received little systematic study. Addressing these gaps will help clarify how multimodal models generalize and which features most reliably drive spread prediction in operational contexts.
+
+\section{Method}
+\subsection{Dataset}
+We use the modified Next Day Wildfire Spread (mNDWS) dataset \cite{hulsey2024mndws}. It packages 500 m VIIRS tiles spanning the western contiguous United States between 2018 and 2023 with predefined train/validation/test splits and per-channel normalization statistics. Each sample includes dynamic weather aggregates (precipitation, temperature, wind speed and direction), vegetation and drought indicators (NDVI, ERC, CHILI), latent fuel embeddings (fuel1--3) derived from 30 m LANDFIRE fuels, topography (elevation), and impervious/water masks. Class imbalance is severe—roughly 3\% of pixels are positive—so all models will incorporate loss re-weighting or focal components. We treat prediction as binary segmentation (burn/no-burn) for day $t{+}1$.
+
+\subsection{Baselines and Training Setup}
+We frame the task as next-day binary segmentation on $H\times W$ tiles. Our baseline lineup is:
+\begin{enumerate}
+    \item Logistic regression trained per pixel on the tabular covariates with $L_{2}$ regularization.
+    \item A shallow CNN without skip connections to establish the value of local spatial context.
+    \item A compact U-Net using a lightweight encoder (e.g., ResNet-18) to capture multiscale spatial patterns while keeping parameter count tractable.
+\end{enumerate}
+Inputs consist of the standardized mNDWS channels listed above. For imbalance, we will experiment with focal plus Dice loss as well as weighted binary cross-entropy plus Dice. Early stopping will monitor validation F1. To aid interpretation we will perform feature-family ablations by removing wind, fuels, vegetation/drought, or topography channels and measuring F1 and IoU changes. Score calibration will be handled by tuning thresholds on validation precision–recall trade-offs and plotting reliability curves.
+
+\subsection{Evaluation Protocol}
+Model comparisons will emphasize task-specific metrics: micro-averaged F1, Intersection-over-Union (IoU), precision, recall, and precision–recall curves. We will document hyperparameters, report parameter counts, and track approximate training and inference times for each model. Robustness analyses will slice results by high-wind quartiles (\texttt{wind\_75}), impervious fraction (as a WUI proxy), and broad ecoregion or elevation bands when available. Each ablation will modify a single component at a time with shared random seeds and configuration tracking for reproducibility.
+
+\section{Preliminary Experiments}
+We completed TFRecord ingestion and confirmed tensor shapes, normalization statistics, and class imbalance (3\% positives) using a 50-tile sample. The logistic-regression baseline pipeline now standardizes channels, applies class weighting, and fits on a downsampled subset to validate convergence; full-scale training awaits batch-queued GPU time. U-Net data loaders with augmentation hooks (horizontal/vertical flips) were also verified offline. No quantitative metrics are reported yet because large-scale training runs are scheduled after cluster maintenance on 15 Nov 2025.
+
+\section{Next Steps}
+Immediate priorities are: (i) finish end-to-end logistic regression training and log precision–recall curves; (ii) launch the compact U-Net baseline with mixed-precision training and capture learning curves; (iii) execute feature-family ablations beginning with the wind exclusion scenario; and (iv) integrate calibration plots and robustness slices into the evaluation notebook.
+
+\section{Member Contributions}
+Robert Harris is leading data engineering, TFRecord ingestion, and baseline logistic regression experiments. Hannah Richardson is implementing and tuning the shallow CNN and U-Net models, including augmentation and mixed-precision training. Chelsey Blowe is expanding the literature survey, designing the evaluation protocol, and drafting the robustness and calibration analyses. All members will review experiment logs and contribute to documentation prior to submission.
+    \item \textbf{Feature Ablations:} Remove one feature family at a time and record performance deltas. Hypothesis: removing wind will cause the largest degradation, while fuels provide incremental gain.
+
+    \item \textbf{Robustness Slices:} Stratify results by \texttt{wind\_75} quartiles, impervious percentage (as a wildland–urban interface proxy), and coarse ecoregion or elevation bands if available.
+
+    \raggedright\item \textbf{Calibration and Thresholding:} Tune classification thresholds for high-precision versus high-recall operating points, and examine reliability or calibration curves.
+\end{enumerate}
+
+\noindent\textbf{Reproducibility:} Fix random seeds, save configurations, apply single-change ablations, and maintain basic run tracking for all experiments.
+
+\begin{thebibliography}{00}
+
+\bibitem{hulsey2024mndws}
+G.~Hulsey, ``Modified Next Day Wildfire Spread (mNDWS),'' Kaggle Dataset, Sep.~2024. \url{https://www.kaggle.com/datasets/georgehulsey/modified-next-day-wildfire-spread}.
+
+\bibitem{linn2002firetec}
+R.~R. Linn, J.~M. Reisner, J.~J. Colman, and J.~Winterkamp,
+``FIRETEC: A physics-based model for coupled fire--atmosphere interaction,''
+\emph{International Journal of Wildland Fire}, vol.~11, no.~4, pp.~233--246, 2002. DOI: \url{https://doi.org/10.1071/WF02006}.
+
+\bibitem{mell2009wildland}
+W.~Mell, S.~L. Manzello, A.~Maranghides, D.~Butry, and R.~G. Rehm,
+``The wildland--urban interface fire problem: Current approaches and research needs,''
+\emph{International Journal of Wildland Fire}, vol.~19, no.~2, pp.~238--251, 2009. DOI: \url{https://doi.org/10.1071/WF07131}.
+
+\bibitem{coen2013wrf}
+J.~L. Coen, M.~Cameron, J.~Michalakes, E.~G. Patton, P.~J. Riggan, and K.~Yedinak,
+``WRF-Fire: Coupled weather--wildland fire modeling with the Weather Research and Forecasting model,''
+\emph{Journal of Applied Meteorology and Climatology}, vol.~52, no.~1, pp.~16--38, 2013. DOI: \url{https://doi.org/10.1175/JAMC-D-12-023.1}.
+
+\bibitem{sullivan2009wildland}
+A.~L. Sullivan,
+``Wildland fire behaviour modelling: Review of models, evaluation, and applications,''
+\emph{International Journal of Wildland Fire}, vol.~18, no.~4, pp.~369--386, 2009. DOI: \url{https://doi.org/10.1071/WF06143}.
+
+\bibitem{bakhshaii2019review}
+A.~Bakhshaii and E.~A. Johnson,
+``A review of wildland fire spread modelling, 1990--2019,''
+\emph{International Journal of Wildland Fire}, vol.~28, no.~11, pp.~827--842, 2019. DOI: \url{https://doi.org/10.1071/WF19002}.
+
+\bibitem{pimont2021fireline}
+F.~Pimont \emph{et al.},
+``Fireline intensity of spreading wildfires: Variability and multiplicative structure,''
+\emph{International Journal of Wildland Fire}, vol.~30, no.~1, pp.~1--14, 2021. DOI: \url{https://doi.org/10.1071/WF19133}.
+
+\bibitem{kochanski2013evaluation}
+A.~K. Kochanski, M.~A. Jenkins, J.~Mandel, J.~D. Beezley, C.~B. Clements, and S.~Krueger,
+``Evaluation of WRF-Sfire performance with field observations from the FireFlux experiment,''
+\emph{Geoscientific Model Development}, vol.~6, no.~3, pp.~1109--1126, 2013. DOI: \url{https://doi.org/10.5194/gmd-6-1109-2013}.
+
+\bibitem{mueller2014modeling}
+E.~V. Mueller, R.~R. Linn, J.~Winterkamp, and C.~H. Sieg,
+``Modeling crown fire behavior in complex terrain using coupled fire--atmosphere models,''
+\emph{Forest Science}, vol.~60, no.~4, pp.~781--792, 2014. DOI: \url{https://doi.org/10.5849/forsci.13-100}.
+
+\bibitem{hiers2020interactions}
+J.~K. Hiers, J.~J. O’Brien, J.~M. Varner \emph{et al.},
+``Interactions between fire and atmosphere in wildland fire spread,''
+\emph{Forest Ecology and Management}, vol.~475, p.~118373, 2020. DOI: \url{https://doi.org/10.1016/j.foreco.2020.118373}.
+
+\bibitem{clements2007observing}
+C.~B. Clements, S.~Zhong, S.~Goodrick \emph{et al.},
+``Observing the dynamics of wildland grass fires: FireFlux---A field validation experiment,''
+\emph{Bulletin of the American Meteorological Society}, vol.~88, no.~9, pp.~1369--1382, 2007. DOI: \url{https://doi.org/10.1175/BAMS-88-9-1369}.
+
+\bibitem{canfield2014fireflux}
+J.~M. Canfield, C.~B. Clements, S.~Zhong, S.~Goodrick, and S.~Li,
+``FireFlux II: An evaluation of plume and fire behavior in grass fires,''
+\emph{International Journal of Wildland Fire}, vol.~23, no.~9, pp.~1163--1174, 2014. DOI: \url{https://doi.org/10.1071/WF12190}.
+
+\bibitem{linn2021conceptual}
+R.~R. Linn, J.~M. Canfield, F.~Pimont \emph{et al.},
+``A conceptual framework for coupled fire--atmosphere modeling,''
+\emph{International Journal of Wildland Fire}, vol.~30, no.~8, pp.~593--608, 2021. DOI: \url{https://doi.org/10.1071/WF20132}.
+
+\bibitem{wang2023high}
+Z.~Wang, C.~M. Hoffman, R.~Kooper, R.~M. Hadden, A.~Simeoni, and W.~T. Scherer,
+``A high-resolution large-eddy simulation framework for wildland fire prediction using TensorFlow,''
+\emph{International Journal of Wildland Fire}, vol.~32, no.~12, pp.~1711--1725, 2023. DOI: \url{https://doi.org/10.1071/WF23084}.
+
+\bibitem{papakis2025AMultimodalEnsembleDeepLearning}
+I.~Papakis, V.~Linardos, and M.~Drakaki, ``A Multimodal Ensemble Deep Learning Model for Wildfire Prediction in Greece Using Satellite Imagery and Multi-Source Remote Sensing Data,''
+\emph{Remote Sensing}, 17, no.~ 19: 3310,  2025. DOI: \url{https://doi.org/10.3390/rs17193310}.
+
+\bibitem{shadrin2024scientificreports}
+D.~Shadrin, S.~Illarionova, F.~Gubanov, K.~Evteeva, M.~Mironenko, I.~Levchunets, R.~Belousov, and E.~Burnaev, ``Wildfire spreading prediction using multimodal data and deep neural network approach,'' \emph{Scientific Reports}, vol.~14, no.~2606, 2024. DOI: \url{https://doi.org/10.1038/s41598-024-52821-x}.
+
+
+
+
+\end{thebibliography}
+
+\end{document}
