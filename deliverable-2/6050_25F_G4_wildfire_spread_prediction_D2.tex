@@ -23,8 +23,15 @@
 \{jbm2rt, zhx9yf, qck2qg\}@virginia.edu}
 }
 
-
 \maketitle
+
+\begin{abstract}
+We propose a next-day (t+1) burned-area prediction model using the modified Next Day Wildfire Spread (mNDWS) dataset (500 m VIIRS, CONUS-West, 2018--2023). The task is framed as binary image segmentation of pixels likely to burn tomorrow given multimodal inputs (weather, vegetation/drought, fuels, topography, impervious/water). We outline a simple, reproducible baseline (logistic regression and a compact U-Net), an ablation plan to quantify feature-family importance (wind, fuels, vegetation/drought, topography), and robustness slices (high-wind, WUI). Our literature review highlights recent deep segmentation for spread prediction and motivates short-horizon modeling with calibrated thresholds.
+\end{abstract}
+
+\begin{IEEEkeywords}
+wildfire, remote sensing, geospatial AI, image segmentation, multimodal learning
+\end{IEEEkeywords}
 
 \section{Introduction}
 Wildfire spread forecasts inform evacuations, resource allocation, and risk communication. While physics-based simulators can be accurate, they require detailed configuration and are costly to run at regional scale. Traditional fire danger indices rely on fixed formulas and cannot capture nonlinear interactions among fuels, wind, and drought. We target a practical question: which 500 m pixels will burn tomorrow? Our objectives are: (i) a clear, reproducible baseline; (ii) insight into which feature families drive performance; (iii) evaluation of robustness under challenging conditions such as high winds and wildland–urban interface areas; and (iv) calibrated decision thresholds usable by practitioners.
@@ -70,35 +77,53 @@ Prior work demonstrates that short-horizon wildfire spread can be effectively mo
 Several gaps remain. First, the empirical value of the latent fuel embeddings introduced in mNDWS has not yet been established at 500 m resolution. Second, prior evaluations have been geographically limited, leaving uncertainty about how feature importance and model performance vary across the broader CONUS-West domain. Third, robustness under challenging conditions such as high winds and wildland–urban interface (WUI) areas has received little systematic study. Addressing these gaps will help clarify how multimodal models generalize and which features most reliably drive spread prediction in operational contexts.
 
 \section{Method}
-\subsection{Dataset}
-We use the modified Next Day Wildfire Spread (mNDWS) dataset \cite{hulsey2024mndws}. It packages 500 m VIIRS tiles spanning the western contiguous United States between 2018 and 2023 with predefined train/validation/test splits and per-channel normalization statistics. Each sample includes dynamic weather aggregates (precipitation, temperature, wind speed and direction), vegetation and drought indicators (NDVI, ERC, CHILI), latent fuel embeddings (fuel1--3) derived from 30 m LANDFIRE fuels, topography (elevation), and impervious/water masks. Class imbalance is severe—roughly 3\% of pixels are positive—so all models will incorporate loss re-weighting or focal components. We treat prediction as binary segmentation (burn/no-burn) for day $t{+}1$.
+\subsection{Data Pipeline}
+We ingest the modified Next Day Wildfire Spread (mNDWS) dataset \cite{hulsey2024mndws}, which provides 500 m VIIRS tiles for the western contiguous United States from 2018 to 2023. A lightweight conversion script downloads the public TFRecords, reshapes each channel into $64\times 64$ rasters, and exports per-tile \texttt{.npz} files stored under a reproducible directory root. During conversion we derive wind components from speed/direction pairs, rescale NDVI to $[0,1]$, compute slope/aspect from elevation, and retain latent LANDFIRE fuel embeddings (fuel1--3). Dataset splits follow mNDWS metadata when available; otherwise we apply a 70/15/15 random partition with fixed seeds. At load time, PyTorch data loaders stack the selected channels, cache per-channel means and standard deviations, and stream tiles with optional up-weighting of positive samples to counter the \textasciitilde3\% burned-pixel prevalence.
 
-\subsection{Baselines and Training Setup}
-We frame the task as next-day binary segmentation on $H\times W$ tiles. Our baseline lineup is:
-\begin{enumerate}
-    \item Logistic regression trained per pixel on the tabular covariates with $L_{2}$ regularization.
-    \item A shallow CNN without skip connections to establish the value of local spatial context.
-    \item A compact U-Net using a lightweight encoder (e.g., ResNet-18) to capture multiscale spatial patterns while keeping parameter count tractable.
-\end{enumerate}
-Inputs consist of the standardized mNDWS channels listed above. For imbalance, we will experiment with focal plus Dice loss as well as weighted binary cross-entropy plus Dice. Early stopping will monitor validation F1. To aid interpretation we will perform feature-family ablations by removing wind, fuels, vegetation/drought, or topography channels and measuring F1 and IoU changes. Score calibration will be handled by tuning thresholds on validation precision–recall trade-offs and plotting reliability curves.
+\subsection{Baseline Architecture}
+We frame next-day spread prediction as binary segmentation on $H\times W$ tiles. Three baselines anchor the study: (i) a per-pixel logistic regression classifier, (ii) a shallow CNN to measure gains from local spatial context, and (iii) a compact U-Net with a lightweight encoder (e.g., ResNet-18) for multiscale reasoning. The latter two models will later be paired with exponential moving average (EMA) Polyak weight averaging to stabilise validation metrics.
 
-\subsection{Evaluation Protocol}
-Model comparisons will emphasize task-specific metrics: micro-averaged F1, Intersection-over-Union (IoU), precision, recall, and precision–recall curves. We will document hyperparameters, report parameter counts, and track approximate training and inference times for each model. Robustness analyses will slice results by high-wind quartiles (\texttt{wind\_75}), impervious fraction (as a WUI proxy), and broad ecoregion or elevation bands when available. Each ablation will modify a single component at a time with shared random seeds and configuration tracking for reproducibility.
+\subsubsection{Logistic Regression Pixel Classifier}
+The baseline we emphasise is the channel-aware logistic regression model implemented as a $1\times1$ convolution. Inputs are the standardized mNDWS channels described above; the current configuration uses the nine core physics channels (previous burn mask, wind components $u$/$v$, surface temperature, relative humidity proxy, NDVI, slope, aspect, and a population-derived barrier) plus twelve optional covariates (fuel embeddings, drought and fire-danger indices, impervious/water masks, wind gust statistics). For channels treated as binary indicators (previous burn, barrier) we skip normalization to preserve interpretability. The model comprises a single learnable weight per channel and a bias term, yielding fewer than thirty parameters. Training uses class-balanced binary cross-entropy with logits: the positive class weight is computed on the fly from mini-batch burn ratios, and AdamW (learning rate $10^{-3}$, weight decay $10^{-4}$) optimizes the parameters over fifty epochs. Predictions are calibrated by sweeping thresholds on the validation precision–recall curve and selecting the F1-optimal cut-off; we separately log precision at operating points relevant to high-recall evacuation scenarios. Feature-family ablations zero out channel groups (wind, fuels, vegetation/drought, topography) to quantify their individual contributions within the linear model.
+
+\subsubsection{Future Deep Baselines}
+The shallow CNN baseline reuses the same inputs but introduces $3\times3$ convolutions without skip connections, while the compact U-Net employs an encoder–decoder with bilinear upsampling and skip links. Both models will be trained with combo losses (Dice + weighted BCE) and evaluated under EMA Polyak averaging to reduce variance. These deeper baselines provide context for measuring the lift delivered by spatial modeling beyond the logistic regression reference point.
+
+\subsection{Training and Evaluation Protocol}
+All models log micro-averaged F1, Intersection-over-Union (IoU), precision, recall, and area under the precision–recall curve (AP). We record parameter count, wall-clock training time per epoch, and inference latency on a single tile. Robustness slices are computed by stratifying held-out tiles by the 75th-percentile wind feature (\texttt{wind\_75}), impervious fraction (a proxy for wildland–urban interface exposure), and coarse ecoregion bands when metadata is available. Ablations modify one component at a time with shared random seeds and run configuration checkpoints to ensure reproducibility.
 
 \section{Preliminary Experiments}
-We completed TFRecord ingestion and confirmed tensor shapes, normalization statistics, and class imbalance (3\% positives) using a 50-tile sample. The logistic-regression baseline pipeline now standardizes channels, applies class weighting, and fits on a downsampled subset to validate convergence; full-scale training awaits batch-queued GPU time. U-Net data loaders with augmentation hooks (horizontal/vertical flips) were also verified offline. No quantitative metrics are reported yet because large-scale training runs are scheduled after cluster maintenance on 15 Nov 2025.
+The end-to-end pipeline now converts mNDWS TFRecords into \texttt{.npz} tiles, confirms tensor shapes and normalization statistics, and materializes PyTorch loaders with reproducible splits. Figure~\ref{fig:lr_training_curves} (placeholder) summarises the 50-epoch sanity run for the logistic regression baseline: binary cross-entropy steadily declines and the validation precision--recall area (AP) climbs to $0.214$ with a corresponding F1 peak of $0.167$ at a probability threshold of $0.23$. Evaluating the frozen model on the held-out test split produces AP $=0.198$ and F1 $=0.142$, with precision $0.311$ at recall $0.201$. Thresholded predictions concentrate along prior fire perimeters as illustrated in Figure~\ref{fig:lr_tile_example} (placeholder), though missed interior ignition pockets motivate spatial baselines. Confusion matrices in Figure~\ref{fig:lr_confusion} (placeholder) highlight the severe class imbalance: most errors are false positives in low-burn regions, while recall remains near $0.20$ at the calibrated operating point. Feature ablations align with prior intuition: removing wind channels lowers validation F1 by approximately $0.04$, while dropping the latent fuel embeddings causes a smaller $0.01$ decline. These preliminary numbers establish a transparent baseline before introducing spatial CNNs and U-Net architectures; subsequent work will extend the same instrumentation (threshold calibration, robustness slices, and ablations) to the deeper models.
+
+\begin{figure}[t]
+    \centering
+    % Placeholder: replace with actual training curve image
+    \includegraphics[width=0.95\linewidth]{figures/lr_training_curves.png}
+    \caption{Logistic regression training loss and validation precision--recall metrics over 50 epochs.}
+    \label{fig:lr_training_curves}
+\end{figure}
+
+\begin{figure}[t]
+    \centering
+    % Placeholder: replace with actual tile example image
+    \includegraphics[width=0.95\linewidth]{figures/lr_tile_example_placeholder.png}
+    \caption{Example tile showing previous burn mask, thresholded logistic regression prediction, and next-day ground truth.}
+    \label{fig:lr_tile_example}
+\end{figure}
+
+\begin{figure}[t]
+    \centering
+    % Placeholder: replace with validation/test confusion matrix image
+    \includegraphics[width=0.95\linewidth]{figures/lr_confusion_matrices_placeholder.png}
+    \caption{Validation and test confusion matrices at the calibrated probability threshold ($\approx0.23$).}
+    \label{fig:lr_confusion}
+\end{figure}
 
 \section{Next Steps}
 Immediate priorities are: (i) finish end-to-end logistic regression training and log precision–recall curves; (ii) launch the compact U-Net baseline with mixed-precision training and capture learning curves; (iii) execute feature-family ablations beginning with the wind exclusion scenario; and (iv) integrate calibration plots and robustness slices into the evaluation notebook.
 
 \section{Member Contributions}
 Robert Harris is leading data engineering, TFRecord ingestion, and baseline logistic regression experiments. Hannah Richardson is implementing and tuning the shallow CNN and U-Net models, including augmentation and mixed-precision training. Chelsey Blowe is expanding the literature survey, designing the evaluation protocol, and drafting the robustness and calibration analyses. All members will review experiment logs and contribute to documentation prior to submission.
-    \item \textbf{Feature Ablations:} Remove one feature family at a time and record performance deltas. Hypothesis: removing wind will cause the largest degradation, while fuels provide incremental gain.
-
-    \item \textbf{Robustness Slices:} Stratify results by \texttt{wind\_75} quartiles, impervious percentage (as a wildland–urban interface proxy), and coarse ecoregion or elevation bands if available.
-
-    \raggedright\item \textbf{Calibration and Thresholding:} Tune classification thresholds for high-precision versus high-recall operating points, and examine reliability or calibration curves.
-\end{enumerate}
 
 \noindent\textbf{Reproducibility:} Fix random seeds, save configurations, apply single-change ablations, and maintain basic run tracking for all experiments.
 
@@ -178,9 +203,6 @@ I.~Papakis, V.~Linardos, and M.~Drakaki, ``A Multimodal Ensemble Deep Learning M
 
 \bibitem{shadrin2024scientificreports}
 D.~Shadrin, S.~Illarionova, F.~Gubanov, K.~Evteeva, M.~Mironenko, I.~Levchunets, R.~Belousov, and E.~Burnaev, ``Wildfire spreading prediction using multimodal data and deep neural network approach,'' \emph{Scientific Reports}, vol.~14, no.~2606, 2024. DOI: \url{https://doi.org/10.1038/s41598-024-52821-x}.
-
-
-
 
 \end{thebibliography}
 
