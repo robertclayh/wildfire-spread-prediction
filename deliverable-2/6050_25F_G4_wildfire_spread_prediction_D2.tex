@@ -222,6 +222,7 @@ Qualitative inspection and aggregate diagnostics show that the linear baseline m
     \label{fig:lr_confusion}
 \end{figure}
 
+
 \section{Next Steps}
 \label{sec:nextsteps}
 \subsection{Immediate Priorities}
@@ -231,6 +232,13 @@ Immediate priorities are: (i) finish training the compact U-Net baseline with mi
 We will conduct single-factor ablations that remove entire feature families (wind, fuels, vegetation/drought indicators, and topography) from the shared data pipeline, retrain the logistic regression and CNN/U-Net baselines with identical seeds, and report changes in AP, F1, and calibration thresholds. Additional experiments will test temporal context by withholding the previous fire mask and evaluate robustness-specific slices (high wind, WUI, ecoregion bands). Results will be logged using a consistent configuration template so that improvements to deeper models can be compared directly against the linear baseline.
 
 \section{Member Contributions}
+Based on the experimental design guidelines the remaining analysis will be broken up as follows: 
+\begin{itemize}
+    \item Baseline Selection: Chelsey Blowe
+    \item Ablation Studies: Clay Harris
+    \item Metrics to Report/ Future Work: Hannah Richardson
+\end{itemize}
+
 
 \begin{thebibliography}{00}
 
