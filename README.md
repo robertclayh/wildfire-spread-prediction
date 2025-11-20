@@ -1,6 +1,3 @@
-# wildfire-spread-prediction
-Machine learning models for short-term wildfire spread prediction using multimodal geospatial and meteorological data.
-
 # Wildfire Spread Prediction (mNDWS)
 
 Machine learning models for **next-day wildfire spread prediction** using multimodal geospatial, meteorological, and vegetation data.
