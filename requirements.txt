@@ -5,3 +5,5 @@ scikit_learn==1.7.2
 tensorflow==2.19.0
 torch==2.9.0+cu126
 tqdm==4.67.1
+torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu121
+einops
