@@ -77,61 +77,63 @@ except NameError:
 NPZ_ROOT = mndws_dp.NPZ_ROOT
 print(f'Reusing NPZ tiles from pipeline at: {NPZ_ROOT}')
 
-CHANNELS_FOR_MODEL = list(mndws_dp.USE_CHANNELS)  # adjust here if you want fewer features
-paths = mndws_dp.WildfirePaths(NPZ_ROOT)
+def pipeline_hookup(CHANNELS_FOR_MODEL = list(mndws_dp.USE_CHANNELS), BATCH_SIZE = 8):
+    paths = mndws_dp.WildfirePaths(NPZ_ROOT)
 
-train_ds = mndws_dp.WildfireDataset(paths, split='train', max_samples=1200, channels=CHANNELS_FOR_MODEL)
-val_ds   = mndws_dp.WildfireDataset(paths, split='eval',  max_samples=300,  channels=CHANNELS_FOR_MODEL)
-test_ds  = mndws_dp.WildfireDataset(paths, split='test',  max_samples=300,  channels=CHANNELS_FOR_MODEL)
+    train_ds = mndws_dp.WildfireDataset(paths, split='train', max_samples=1200, channels=CHANNELS_FOR_MODEL)
+    val_ds   = mndws_dp.WildfireDataset(paths, split='eval',  max_samples=300,  channels=CHANNELS_FOR_MODEL)
+    test_ds  = mndws_dp.WildfireDataset(paths, split='test',  max_samples=300,  channels=CHANNELS_FOR_MODEL)
 
-BATCH_SIZE = 8
-MAX_PARALLEL_WORKERS = min(8, max(2, (os.cpu_count() or 4) // 2))
-# Training benefits from multiple workers, but evaluation/test often run on memory-constrained nodes.
-TRAIN_WORKERS = MAX_PARALLEL_WORKERS
-EVAL_WORKERS = 0 if os.environ.get("MNDWS_EVAL_ALLOW_WORKERS", "0") == "0" else min(4, MAX_PARALLEL_WORKERS)
-PIN_MEMORY = device.type == "cuda"
+    MAX_PARALLEL_WORKERS = min(8, max(2, (os.cpu_count() or 4) // 2))
+    # Training benefits from multiple workers, but evaluation/test often run on memory-constrained nodes.
+    TRAIN_WORKERS = MAX_PARALLEL_WORKERS
+    EVAL_WORKERS = 0 if os.environ.get("MNDWS_EVAL_ALLOW_WORKERS", "0") == "0" else min(4, MAX_PARALLEL_WORKERS)
+    PIN_MEMORY = device.type == "cuda"
 
-def make_balanced_loader(ds, *, batch_size, shuffle, upweight_positive, num_workers, pin_memory):
-    sampler = None
-    if upweight_positive:
-        weights = []
-        for f in ds.files:
-            try:
-                with np.load(f, mmap_mode="r") as z:
-                    weights.append(5.0 if float(z["next_fire"].sum()) > 0 else 1.0)
-            except Exception:
-                weights.append(1.0)
-        sampler = WeightedRandomSampler(weights, num_samples=len(weights), replacement=True)
-    loader_kwargs = dict(batch_size=batch_size, pin_memory=pin_memory)
-    if num_workers > 0:
-        loader_kwargs["num_workers"] = num_workers
-        loader_kwargs["persistent_workers"] = True
-        loader_kwargs["prefetch_factor"] = 2
-    else:
-        loader_kwargs["num_workers"] = 0
-    if sampler is not None:
-        return DataLoader(ds, sampler=sampler, shuffle=False, **loader_kwargs)
-    return DataLoader(ds, shuffle=shuffle, **loader_kwargs)
+    def make_balanced_loader(ds, *, batch_size, shuffle, upweight_positive, num_workers, pin_memory):
+        sampler = None
+        if upweight_positive:
+            weights = []
+            for f in ds.files:
+                try:
+                    with np.load(f, mmap_mode="r") as z:
+                        weights.append(5.0 if float(z["next_fire"].sum()) > 0 else 1.0)
+                except Exception:
+                    weights.append(1.0)
+            sampler = WeightedRandomSampler(weights, num_samples=len(weights), replacement=True)
+        loader_kwargs = dict(batch_size=batch_size, pin_memory=pin_memory)
+        if num_workers > 0:
+            loader_kwargs["num_workers"] = num_workers
+            loader_kwargs["persistent_workers"] = True
+            loader_kwargs["prefetch_factor"] = 2
+        else:
+            loader_kwargs["num_workers"] = 0
+        if sampler is not None:
+            return DataLoader(ds, sampler=sampler, shuffle=False, **loader_kwargs)
+        return DataLoader(ds, shuffle=shuffle, **loader_kwargs)
 
-train_loader = make_balanced_loader(
-    train_ds, batch_size=BATCH_SIZE, shuffle=True, upweight_positive=True,
-    num_workers=TRAIN_WORKERS, pin_memory=PIN_MEMORY
-)
-val_loader   = make_balanced_loader(
-    val_ds, batch_size=BATCH_SIZE, shuffle=False, upweight_positive=False,
-    num_workers=EVAL_WORKERS, pin_memory=PIN_MEMORY
-)
-test_loader  = make_balanced_loader(
-    test_ds, batch_size=BATCH_SIZE, shuffle=False, upweight_positive=False,
-    num_workers=EVAL_WORKERS, pin_memory=PIN_MEMORY
-)
-print(f"DataLoader workers -> train: {TRAIN_WORKERS}, val: {EVAL_WORKERS}, test: {EVAL_WORKERS}; pin_memory={PIN_MEMORY}")
+    train_loader = make_balanced_loader(
+        train_ds, batch_size=BATCH_SIZE, shuffle=True, upweight_positive=True,
+        num_workers=TRAIN_WORKERS, pin_memory=PIN_MEMORY
+    )
+    val_loader   = make_balanced_loader(
+        val_ds, batch_size=BATCH_SIZE, shuffle=False, upweight_positive=False,
+        num_workers=EVAL_WORKERS, pin_memory=PIN_MEMORY
+    )
+    test_loader  = make_balanced_loader(
+        test_ds, batch_size=BATCH_SIZE, shuffle=False, upweight_positive=False,
+        num_workers=EVAL_WORKERS, pin_memory=PIN_MEMORY
+    )
+    print(f"DataLoader workers -> train: {TRAIN_WORKERS}, val: {EVAL_WORKERS}, test: {EVAL_WORKERS}; pin_memory={PIN_MEMORY}")
 
-meanC, stdC = mndws_dp.compute_channel_stats(train_ds, n_max_samples=4000, batch_size=32)
-meanC, stdC = meanC.to(device), stdC.to(device)
+    meanC, stdC = mndws_dp.compute_channel_stats(train_ds, n_max_samples=4000, batch_size=32)
+    meanC, stdC = meanC.to(device), stdC.to(device)
 
-print(f'Channels configured ({len(CHANNELS_FOR_MODEL)}): {CHANNELS_FOR_MODEL}')
-print("Channel stats computed ->", meanC.shape, stdC.shape)
+    print(f'Channels configured ({len(CHANNELS_FOR_MODEL)}): {CHANNELS_FOR_MODEL}')
+    print("Channel stats computed ->", meanC.shape, stdC.shape)
+
+    return train_ds, val_ds, test_ds, train_loader, val_loader, test_loader, meanC, stdC
+
 
 # =========================================================
 # 2) Pixel Logistic Regression (1x1 conv) — mNDWS channel-aware, change number of epochs here
@@ -144,9 +146,9 @@ class PixelLogReg(nn.Module):
     def forward(self, x):
         return self.lin(x)  # logits (B,1,H,W)
 
-def build_lr_input(X_raw0, mean=meanC, std=stdC):
+def build_lr_input(X_raw0, meanC, stdC):
     # Normalize using stats for the configured channels
-    return (X_raw0 - mean.view(1, -1, 1, 1)) / std.view(1, -1, 1, 1)
+    return (X_raw0 - meanC.view(1, -1, 1, 1)) / stdC.view(1, -1, 1, 1)
 
 @torch.no_grad()
 def pos_weight_from_loader(loader, max_batches=100):
