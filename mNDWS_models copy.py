@@ -211,6 +211,76 @@ def PixelLogReg_outputs(train_ds, meanC, stdC, train_loader, device):
 # change number of epochs here
 #EPOCHS_LR = 50
 
+
+# =============================================================
+# 2b) Optional loss functions (Focal + Tversky) for segmentation heads
+# =============================================================
+
+class BinaryFocalLoss(nn.Module):
+    """Focal loss wrapper around BCE-with-logits for class-imbalanced masks."""
+
+    def __init__(self, alpha: float = 0.25, gamma: float = 2.0,
+                 reduction: str = "mean", pos_weight: Optional[torch.Tensor] = None) -> None:
+        super().__init__()
+        if reduction not in {"none", "mean", "sum"}:
+            raise ValueError("reduction must be one of none|mean|sum")
+        self.alpha = alpha
+        self.gamma = gamma
+        self.reduction = reduction
+        self.pos_weight = pos_weight
+
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        targets = targets.type_as(logits)
+        bce = F.binary_cross_entropy_with_logits(logits, targets,
+                                                 pos_weight=self.pos_weight,
+                                                 reduction="none")
+        probs = torch.sigmoid(logits)
+        pt = probs * targets + (1.0 - probs) * (1.0 - targets)
+        alpha_t = self.alpha * targets + (1.0 - self.alpha) * (1.0 - targets)
+        focal = alpha_t * (1.0 - pt).pow(self.gamma) * bce
+        if self.reduction == "mean":
+            return focal.mean()
+        if self.reduction == "sum":
+            return focal.sum()
+        return focal
+
+
+class TverskyLoss(nn.Module):
+    """Tversky loss (1 - index) tailored for binary masks using logits input."""
+
+    def __init__(self, alpha: float = 0.5, beta: float = 0.5, smooth: float = 1e-6) -> None:
+        super().__init__()
+        self.alpha = alpha
+        self.beta = beta
+        self.smooth = smooth
+
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        targets = targets.type_as(logits)
+        probs = torch.sigmoid(logits)
+        dims = tuple(range(1, probs.ndim))
+        tp = (probs * targets).sum(dim=dims)
+        fp = (probs * (1.0 - targets)).sum(dim=dims)
+        fn = ((1.0 - probs) * targets).sum(dim=dims)
+        score = (tp + self.smooth) / (tp + self.alpha * fp + self.beta * fn + self.smooth)
+        return 1.0 - score.mean()
+
+
+def build_physics_loss(loss_type: str = "bce", *, pos_weight: Optional[torch.Tensor] = None,
+                       focal_alpha: float = 0.25, focal_gamma: float = 2.0,
+                       tversky_alpha: float = 0.5, tversky_beta: float = 0.5,
+                       reduction: str = "mean") -> nn.Module:
+    """Factory for physics UNet losses (BCE, Focal, Tversky)."""
+
+    loss_type = loss_type.lower()
+    if loss_type == "bce":
+        return nn.BCEWithLogitsLoss(pos_weight=pos_weight, reduction=reduction)
+    if loss_type == "focal":
+        return BinaryFocalLoss(alpha=focal_alpha, gamma=focal_gamma,
+                               reduction=reduction, pos_weight=pos_weight)
+    if loss_type == "tversky":
+        return TverskyLoss(alpha=tversky_alpha, beta=tversky_beta)
+    raise ValueError(f"Unsupported loss_type '{loss_type}' (expected bce|focal|tversky)")
+
 # =============================================================
 # 3) Model definition – ResNet-18 encoder + lightweight decoder
 # =============================================================
@@ -512,8 +582,10 @@ class PhysicsFeatureBuilder:
 
 
 def build_physics_unet_bundle(CHANNELS_FOR_MODEL, meanC, stdC,
-                              base_width: int = 80, ema_decay: float = 0.999):
-    """Helper that mirrors the EMA/Polyak setup from the notebooks."""
+                              base_width: int = 80, ema_decay: float = 0.999,
+                              loss_type: str = "bce",
+                              loss_kwargs: Optional[Dict[str, float]] = None):
+    """Helper that mirrors the EMA/Polyak setup from the notebooks, plus loss factory."""
 
     missing = [c for c in PHYSICS_BASE_CHANNELS if c not in CHANNELS_FOR_MODEL]
     if missing:
@@ -524,6 +596,8 @@ def build_physics_unet_bundle(CHANNELS_FOR_MODEL, meanC, stdC,
     model = PhysicsUNet(in_ch=feature_builder.output_channels, out_ch=1, base=base_width).to(device)
     ema = EMA(model, decay=ema_decay)
     polyak = PolyakAverager(model)
+    loss_conf = dict(loss_kwargs or {})
+    criterion = build_physics_loss(loss_type, **loss_conf)
 
     print(
         f"PhysicsPrior UNet init -> in:{feature_builder.output_channels} base:{base_width} "
@@ -535,4 +609,6 @@ def build_physics_unet_bundle(CHANNELS_FOR_MODEL, meanC, stdC,
         "feature_builder": feature_builder,
         "ema": ema,
         "polyak": polyak,
+        "criterion": criterion,
+        "loss_config": {"type": loss_type, "kwargs": loss_conf},
     }
