@@ -265,9 +265,31 @@ class TverskyLoss(nn.Module):
         return 1.0 - score.mean()
 
 
+class HybridFocalTverskyLoss(nn.Module):
+    """Weighted sum of focal and Tversky losses (single forward for each)."""
+
+    def __init__(
+        self,
+        focal_loss: BinaryFocalLoss,
+        tversky_loss: TverskyLoss,
+        focal_weight: float = 0.5,
+    ) -> None:
+        super().__init__()
+        self.focal = focal_loss
+        self.tversky = tversky_loss
+        self.focal_weight = float(focal_weight)
+
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        fw = float(min(max(self.focal_weight, 0.0), 1.0))
+        focal_term = self.focal(logits, targets)
+        tversky_term = self.tversky(logits, targets)
+        return fw * focal_term + (1.0 - fw) * tversky_term
+
+
 def build_physics_loss(loss_type: str = "bce", *, pos_weight: Optional[torch.Tensor] = None,
                        focal_alpha: float = 0.25, focal_gamma: float = 2.0,
                        tversky_alpha: float = 0.5, tversky_beta: float = 0.5,
+                       focal_weight: float = 0.5,
                        reduction: str = "mean") -> nn.Module:
     """Factory for physics UNet losses (BCE, Focal, Tversky)."""
 
@@ -279,6 +301,11 @@ def build_physics_loss(loss_type: str = "bce", *, pos_weight: Optional[torch.Ten
                                reduction=reduction, pos_weight=pos_weight)
     if loss_type == "tversky":
         return TverskyLoss(alpha=tversky_alpha, beta=tversky_beta)
+    if loss_type in {"focal_tversky", "hybrid"}:
+        focal_loss = BinaryFocalLoss(alpha=focal_alpha, gamma=focal_gamma,
+                                     reduction=reduction, pos_weight=pos_weight)
+        tversky_loss = TverskyLoss(alpha=tversky_alpha, beta=tversky_beta)
+        return HybridFocalTverskyLoss(focal_loss, tversky_loss, focal_weight=focal_weight)
     raise ValueError(f"Unsupported loss_type '{loss_type}' (expected bce|focal|tversky)")
 
 # =============================================================
