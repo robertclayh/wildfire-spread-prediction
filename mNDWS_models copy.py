@@ -455,7 +455,7 @@ class PhysicsPrior(nn.Module):
             .unfold(3, K, 1)
             .contiguous()
             .view(B, 1, H, W, K * K)
-            .permute(0, 4, 2, 3)
+            .permute(0, 4, 2, 3, 1)
             .reshape(B, K * K, H * W)
         )
         spread = (pf_unfold * ker).sum(dim=1).view(B, 1, H, W)
