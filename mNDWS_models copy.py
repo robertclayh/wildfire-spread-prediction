@@ -448,7 +448,16 @@ class PhysicsPrior(nn.Module):
         kernel_flat = kernel_flat / (kernel_flat.sum(dim=2, keepdim=True) + 1e-8)
 
         ker = kernel_flat.reshape(B, K * K, H * W)
-        pf_unfold = F.unfold(prev_fire, kernel_size=K, padding=r)
+        # F.unfold currently falls back to CPU on MPS, so emulate im2col with tensor.unfold
+        pf_pad = F.pad(prev_fire, (r, r, r, r))
+        pf_unfold = (
+            pf_pad.unfold(2, K, 1)
+            .unfold(3, K, 1)
+            .contiguous()
+            .view(B, 1, H, W, K * K)
+            .permute(0, 4, 2, 3)
+            .reshape(B, K * K, H * W)
+        )
         spread = (pf_unfold * ker).sum(dim=1).view(B, 1, H, W)
 
         damp = torch.sigmoid(self.a0 + self.a1 * temp - self.a2 * rh + self.a3 * ndvi)
