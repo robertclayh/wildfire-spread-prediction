@@ -272,6 +272,7 @@ def build_physics_loss(loss_type: str = "bce", *, pos_weight: Optional[torch.Ten
 PHYSICS_BASE_CHANNELS = [
     "prev_fire", "u", "v", "temp", "rh", "ndvi", "slope", "aspect", "barrier"
 ]
+OPTIONAL_PHYSICS_BASE_CHANNELS: Set[str] = set(PHYSICS_BASE_CHANNELS)
 
 
 class PhysicsPrior(nn.Module):
@@ -442,8 +443,8 @@ class PhysicsFeatureBuilder:
         skip_norm: Optional[Set[str]] = None,
     ) -> None:
         self.channel_to_idx = {name: idx for idx, name in enumerate(channel_names)}
+        self.available_channels = set(self.channel_to_idx)
         self.prior = prior
-        self.base_indices = [self.channel_to_idx[c] for c in PHYSICS_BASE_CHANNELS]
         self.skip_norm = set(skip_norm or {"prev_fire", "barrier"})
 
         mean_adj = mean.clone().detach()
@@ -456,27 +457,38 @@ class PhysicsFeatureBuilder:
         self.registered_mean = mean_adj.view(1, -1, 1, 1)
         self.registered_std = (std_adj.view(1, -1, 1, 1).clamp(min=1e-6))
 
-    def _select(self, x: torch.Tensor, name: str) -> torch.Tensor:
-        idx = self.channel_to_idx[name]
-        return x[:, idx:idx + 1]
+    def _select_optional(self, x: torch.Tensor, name: str, fill_value: float = 0.0) -> torch.Tensor:
+        if name in self.channel_to_idx:
+            idx = self.channel_to_idx[name]
+            return x[:, idx:idx + 1]
+        shape = (x.shape[0], 1, x.shape[2], x.shape[3])
+        return x.new_full(shape, fill_value)
 
     def _gather_base(self, x: torch.Tensor) -> torch.Tensor:
-        return torch.cat([x[:, idx:idx + 1] for idx in self.base_indices], dim=1)
+        pieces = []
+        for name in PHYSICS_BASE_CHANNELS:
+            if name in self.channel_to_idx:
+                idx = self.channel_to_idx[name]
+                pieces.append(x[:, idx:idx + 1])
+            else:
+                shape = (x.shape[0], 1, x.shape[2], x.shape[3])
+                pieces.append(x.new_zeros(shape))
+        return torch.cat(pieces, dim=1)
 
     def __call__(self, X_raw: torch.Tensor) -> torch.Tensor:
         mean = self.registered_mean.to(X_raw.device, dtype=X_raw.dtype)
         std = self.registered_std.to(X_raw.device, dtype=X_raw.dtype)
         X_norm = (X_raw - mean) / std
 
-        pf = self._select(X_raw, "prev_fire")
-        u = self._select(X_raw, "u")
-        v = self._select(X_raw, "v")
-        temp = self._select(X_raw, "temp")
-        rh = self._select(X_raw, "rh")
-        ndvi = self._select(X_raw, "ndvi")
-        slope = self._select(X_raw, "slope")
-        aspect = self._select(X_raw, "aspect")
-        barrier = self._select(X_raw, "barrier") if "barrier" in self.channel_to_idx else None
+        pf = self._select_optional(X_raw, "prev_fire")
+        u = self._select_optional(X_raw, "u")
+        v = self._select_optional(X_raw, "v")
+        temp = self._select_optional(X_raw, "temp")
+        rh = self._select_optional(X_raw, "rh")
+        ndvi = self._select_optional(X_raw, "ndvi")
+        slope = self._select_optional(X_raw, "slope")
+        aspect = self._select_optional(X_raw, "aspect")
+        barrier = self._select_optional(X_raw, "barrier")
 
         asp_cos = torch.cos(aspect)
         asp_sin = torch.sin(aspect)
@@ -496,12 +508,19 @@ class PhysicsFeatureBuilder:
 def build_physics_unet_bundle(CHANNELS_FOR_MODEL, meanC, stdC,
                               base_width: int = 80, ema_decay: float = 0.999,
                               loss_type: str = "bce",
-                              loss_kwargs: Optional[Dict[str, float]] = None):
+                              loss_kwargs: Optional[Dict[str, float]] = None,
+                              allowed_missing: Optional[Set[str]] = None):
     """Helper that mirrors the EMA/Polyak setup from the notebooks, plus loss factory."""
 
     missing = [c for c in PHYSICS_BASE_CHANNELS if c not in CHANNELS_FOR_MODEL]
+    allowed_missing = set(OPTIONAL_PHYSICS_BASE_CHANNELS if allowed_missing is None else allowed_missing)
+    unsupported = [c for c in missing if c not in allowed_missing]
+    if unsupported:
+        raise ValueError(
+            f"Physics UNet requires base channels {PHYSICS_BASE_CHANNELS}; missing unsupported channels {unsupported}"
+        )
     if missing:
-        raise ValueError(f"Physics UNet requires base channels {PHYSICS_BASE_CHANNELS}; missing {missing}")
+        print(f"PhysicsPrior bundle: proceeding without channels {missing}")
 
     prior = PhysicsPrior(kernel_radius=4, a0=0.0, a1=0.03, a2=0.02, a3=0.7).to(device)
     feature_builder = PhysicsFeatureBuilder(CHANNELS_FOR_MODEL, meanC, stdC, prior)
