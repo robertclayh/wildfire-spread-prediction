@@ -1,0 +1,27 @@
+# config.yaml
+
+seed: 1337
+
+data:
+  batch_size: 16
+  channels_used: auto          # or explicit list, e.g. ["prev_fire", "wind_u", "wind_v", "ndvi", ...]
+
+model:
+  base_width: 80
+  ema_decay: 0.999
+  loss_type: hybrid            # options: "hybrid", "focal", "tversky", etc.
+
+loss:
+  focal_alpha: 0.25
+  focal_gamma: 2.0
+  focal_weight: 0.5            # 0 → pure Tversky, 1 → pure Focal
+  tversky_alpha: 0.7
+  tversky_beta: 0.3
+
+optim:
+  lr: 2.0e-4
+  weight_decay: 1.0e-4
+
+training:
+  epochs: 150
+  amp: auto                    # "auto", true, or false
