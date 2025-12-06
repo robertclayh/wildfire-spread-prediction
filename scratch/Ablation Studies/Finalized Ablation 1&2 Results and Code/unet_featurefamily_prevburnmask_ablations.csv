@@ -1,0 +1,37 @@
+﻿Model,Final Metrics (val/test),,AP,F1,IoU,thr~
+Baseline,Raw,Val,0.4744,0.5355,0.3657,0.63
+Baseline,EMA,Val,0.476,0.5292,0.3598,0.559
+Baseline,Polyak,Val,0.4574,0.5097,0.342,0.588
+Baseline,Raw,Test,0.4536,0.5064,0.3391,
+Baseline,EMA,Test,0.4511,0.4977,0.3313,
+Baseline,Polyak,Test,0.4335,0.4868,0.3217,
+Minus Wind,Raw,Val,0.4653,0.52,0.3514,0.661
+Minus Wind,EMA,Val,0.4476,0.5041,0.337,0.567
+Minus Wind,Polyak,Val,0.4476,0.5036,0.3365,0.633
+Minus Wind,Raw,Test,0.434,0.4869,0.3218,
+Minus Wind,EMA,Test,0.4308,0.4838,0.3191,
+Minus Wind,Polyak,Test,0.4278,0.4846,0.3198,
+Minus Fuel,Raw,Val,0.4739,0.5349,0.3651,0.629
+Minus Fuel,EMA,Val,0.4736,0.5231,0.3542,0.572
+Minus Fuel,Polyak,Val,0.4582,0.506,0.3387,0.63
+Minus Fuel,Raw,Test,0.4401,0.4919,0.3261,
+Minus Fuel,EMA,Test,0.4486,0.4949,0.3288,
+Minus Fuel,Polyak,Test,0.4362,0.4847,0.3198,
+Minus Veg/Drought,Raw,Val,0.4796,0.5325,0.3629,0.677
+Minus Veg/Drought,EMA,Val,0.4684,0.5241,0.3551,0.573
+Minus Veg/Drought,Polyak,Val,0.4551,0.5071,0.3397,0.639
+Minus Veg/Drought,Raw,Test,0.4562,0.5068,0.3394,
+Minus Veg/Drought,EMA,Test,0.4434,0.5012,0.3344,
+Minus Veg/Drought,Polyak,Test,0.4293,0.4849,0.32,
+Minus Topography,Raw,Val,0.4571,0.5203,0.3516,0.63
+Minus Topography,EMA,Val,0.4512,0.5123,0.3443,0.595
+Minus Topography,Polyak,Val,0.4495,0.5071,0.3397,0.597
+Minus Topography,Raw,Test,0.4353,0.4901,0.3246,
+Minus Topography,EMA,Test,0.4305,0.485,0.3201,
+Minus Topography,Polyak,Test,0.427,0.4855,0.3206,
+Without Burn Mask ,Raw,Val,0.4771,0.5354,0.3656,0.541
+Without Burn Mask ,EMA,Val,0.4741,0.5278,0.3585,0.602
+Without Burn Mask ,Polyak,Val,0.4567,0.5036,0.3365,0.614
+Without Burn Mask ,Raw,Test,0.4554,0.5046,0.3374,
+Without Burn Mask ,EMA,Test,0.4527,0.5009,0.3341,
+Without Burn Mask ,Polyak,Test,0.436,0.4844,0.3196,
