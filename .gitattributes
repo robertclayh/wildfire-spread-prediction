@@ -1,1 +1,2 @@
 outputs/unet_final.pt filter=lfs diff=lfs merge=lfs -text
+outputs/*.pt filter=lfs diff=lfs merge=lfs -text
