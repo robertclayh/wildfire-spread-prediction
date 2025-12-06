@@ -8,14 +8,17 @@
 \usepackage{graphicx}
 \usepackage{textcomp}
 \usepackage{xcolor}
+\usepackage{array}
 \usepackage{hyperref}
 \usepackage{url}
+\usepackage{tabularx}
+
 \def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
     T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
 \begin{document}
 
 \title{Next-Day Wildfire Spread Prediction on mNDWS\\
-{\footnotesize A concise proposal aligned to DS6050 Deliverable \#1 by Project Group 4\\
+{\footnotesize
 \url{https://github.com/robertclayh/wildfire-spread-prediction}}
 }
 
@@ -28,25 +31,24 @@
 \maketitle
 
 \begin{abstract}
-We present an end-to-end baseline for next-day (t+1) burned-area prediction on the modified Next Day Wildfire Spread (mNDWS) dataset (500 m VIIRS, CONUS-West, 2018--2023). Our pipeline converts the public TFRecords into standardized $64\times64$ tiles, logs computation costs, and trains a channel-aware logistic regression model that achieves AP $=0.234$ and F1 $=0.412$ on held-out evaluation tiles at a calibrated threshold. Single-feature ablations show the previous-day burn mask dominates performance (F1$^*=0.439$), while wind, fuel, and drought covariates each provide incremental signal, motivating spatial CNN/U-Net models that reason over interactions instead of per-pixel persistence. We outline these in-progress compact U-Net experiments, along with robustness analyses (high wind, wildland--urban interface exposure) that will benchmark deeper models against the reproducible logistic regression reference.
+We build a reproducible baseline for next-day wildfire spread prediction on the modified Next Day Wildfire Spread (mNDWS) dataset (500 m VIIRS, CONUS-West, 2018--2023). The pipeline standardizes public TFRecords into $64\times64$ tiles, logs compute metrics, and yields a channel-aware logistic regression reference (AP $=0.234$, F1 $=0.413$, IoU $=0.260$) that exposes how heavily per-pixel models rely on the previous-day burn mask. Introducing spatial inductive bias via a compact physics-prior U-Net improves test performance to AP $=0.480$, F1 $=0.530$, and IoU $=0.361$ while keeping inference latency under $6$ ms/tile. Feature-family and burn-mask ablations confirm that winds and topography drive the U-Net’s gains, and robustness slices reveal the remaining weaknesses under high winds and wildland--urban interface exposure. We close with limitations around temporal leakage and geospatial metadata, and outline opportunities for richer temporal or vector-based spread models.
 \end{abstract}
 
 \begin{IEEEkeywords}
-wildfire, remote sensing, geospatial AI, image segmentation, multimodal learning
+wildfire spread prediction, physics-prior U-Net, geospatial machine learning, robustness analysis, remote sensing
 \end{IEEEkeywords}
 
 \section{Introduction}
-Wildfire spread forecasts inform evacuations, resource allocation, and risk communication, yet operational tools must balance coverage, transparency, and compute cost. Physics-based simulators capture plume dynamics but are expensive to configure across CONUS-wide domains, while heuristic fire danger indices ignore nonlinear interactions among fuels, wind, and drought. To ground our DS6050 investigation we built a reproducible mNDWS processing pipeline and a channel-aware logistic regression baseline whose calibrated outputs (AP $=0.234$, F1 $=0.412$) now anchor all quantitative reporting. The same instrumentation logs computation metrics, enables single-feature ablations that expose the dominance of the previous-day burn mask, and sets a reference point for the compact U-Net and lightweight CNN models we are currently training.
+Wildfire spread forecasts underpin evacuations, resource allocation, and risk communication, but operational tools must balance coverage, interpretability, and compute cost. High-fidelity simulators resolve plume physics yet remain impractical at continental scale, whereas heuristic danger indices overlook nonlinear interactions among fuels, wind, and drought. We therefore curated a reproducible mNDWS pipeline that standardizes $64\times64$ tiles, instruments every experiment, and establishes a channel-aware logistic regression baseline (AP $=0.234$, F1 $=0.412$, IoU $=0.260$) as the quantitative anchor for this report. Building on that reference, we evaluate compact physics-prior U-Nets, feature-family ablations, and stress-test slices (high wind, wildland--urban interface) to identify when spatial context justifies the additional computation and where future modeling should target remaining failure modes.
 
-Our study addresses the following research questions, which the present deliverable answers for the linear baseline and sets up for upcoming CNN/U-Net experiments:
+Our study targets the following research questions:
 \begin{itemize}
-    \item RQ1: How well can a multimodal model predict next-day burned pixels at 500 m?
-    \item RQ2: Which feature families (wind, fuels, vegetation/drought, topography) contribute most?
-    \item RQ3: How robust is performance under high wind and in WUI (impervious) areas?
-    \item RQ4: Can calibrated uncertainty improve operational thresholding?
+    \item RQ1: How much does spatial context (compact U-Net) improve next-day spread prediction compared with a per-pixel logistic regression baseline, in terms of F1/AP/IoU and compute cost?
+    \item RQ2: Which feature families (wind, fuels, vegetation/drought, topography) contribute most to predictive skill on this task?
+    \item RQ3: How robust is the Physics-Prior U-Net to operational stressors such as high winds and wildland--urban interface (impervious) exposure when evaluated on targeted robustness slices?
 \end{itemize}
 
-Section~\ref{sec:method} documents the data pipeline, instrumentation, and model configurations underpinning the logistic regression baseline; Section~\ref{sec:prelim} reports its quantitative results plus single-feature ablations; and Section~\ref{sec:nextsteps} describes the CNN/U-Net roadmap and robustness analyses that will extend the study beyond the completed linear model.
+We hypothesise that incorporating spatial inductive biases via the compact U-Net will raise F1 by roughly 5--10\% relative to logistic regression while keeping inference latency under $10$~ms per tile, yielding a better accuracy--compute trade-off for deployment.
 
 \section{Literature Survey}
 Classical wildfire spread forecasting relied on high-fidelity coupled fire–atmosphere simulators such as FIRETEC \citep{linn2002firetec}, WFDS \citep{mell2009wildland}, and WRF-Fire \citep{coen2013wrf}. These models established the physical drivers of plume dynamics and wind–fire feedbacks \citep{sullivan2009wildland,bakhshaii2019review} but require fine grids, detailed fuel maps, and specialized HPC environments, limiting their use for rapid, continental-scale decision support.
@@ -78,42 +80,37 @@ Although the cleaned mNDWS training split alone contributes 9,600 daily image pa
 \end{table}
 
 \subsection{Baseline Architecture}
-We frame next-day spread prediction as binary segmentation on $H\times W$ tiles. Our selected baseline is a per-pixel logistic regression classifier, which anchors all current quantitative results given here. In parallel we are prototyping a physics-prior compact U-Net inside \texttt{mNDWS\_UNetModel.ipynb} (architecture and data helpers) and \texttt{mNDWS\_EMA\_Polyak.ipynb} (EMA/Polyak training loop and evaluation utilities); those experiments are in progress and therefore absent from the reported metrics below.
+We frame next-day spread prediction as binary segmentation on $64\times 64$ tiles. Our selected baseline is a per-pixel logistic regression classifier.
 
 \subsubsection{Logistic Regression Pixel Classifier}
 The baseline we emphasise is the channel-aware logistic regression model implemented as a $1\times1$ convolution. Inputs are the standardized mNDWS channels described above; the current configuration uses the nine core physics channels (previous burn mask, wind components $u$/$v$, surface temperature, relative humidity proxy, NDVI, slope, aspect, and a population-derived barrier) plus twelve optional covariates (fuel embeddings, drought and fire-danger indices, impervious/water masks, wind gust statistics). With $64\times 64=4{,}096$ pixels per tile and 22 predictors per pixel, each training example contains $4{,}096\times 22=90{,}112$ floating-point inputs (about $0.36$ MB assuming 32-bit storage), underscoring the need for efficient loaders. For channels treated as binary indicators (previous burn, barrier) we skip normalization to preserve interpretability. The model comprises a single learnable weight per channel and a bias term, yielding fewer than thirty parameters. Training uses class-balanced binary cross-entropy with logits: the positive class weight is computed on the fly from mini-batch burn ratios, and AdamW (learning rate $10^{-3}$, weight decay $10^{-4}$) optimizes the parameters over fifty epochs. Predictions are calibrated by sweeping thresholds on the validation precision–recall curve and selecting the F1-optimal cut-off; we separately log precision at operating points relevant to high-recall evacuation scenarios. Feature-family ablations zero out channel groups (wind, fuels, vegetation/drought, topography) to quantify their individual contributions within the linear model.
 
-\subsubsection{In-Progress U-Net Experiments}
-The compact U-Net under development employs an encoder–decoder with bilinear upsampling, skip links, and the same multimodal inputs as the logistic baseline, but it currently lives only in the aforementioned notebooks. Once training stabilizes (Dice + weighted BCE, Polyak weight averaging), we will promote those findings into the main text to quantify the lift from spatial modeling relative to the implemented logistic regression reference.
-
-\subsection{Training and Evaluation Protocol}
-All models log micro-averaged F1, Intersection-over-Union (IoU), precision, recall, and area under the precision–recall curve (AP). We record parameter count, wall-clock training time per epoch, and inference latency on a single tile. Upcoming robustness diagnostics will stratify held-out tiles by the 75th-percentile wind feature (\texttt{wind\_75}), impervious fraction (a proxy for wildland–urban interface exposure), and coarse ecoregion bands once the necessary metadata joins are in place. Ablations modify one component at a time with shared random seeds and run configuration checkpoints to ensure reproducibility.
-
-\subsection{Hyperparameter Configuration}
-The implemented logistic regression baseline trains with batch size 16, AdamW (learning rate $1\times10^{-3}$, weight decay $1\times10^{-4}$), 50 epochs, and no EMA. We optimise Binary Cross-Entropy with logits using a fixed $\texttt{pos\_weight}$ estimated once from the training loader, apply no gradient clipping, and reuse per-channel means/stds computed from 2,000 sampled tiles. A single call to \texttt{set\_seed(1337)} locks Python, NumPy, and PyTorch RNGs so threshold calibration and loader order are reproducible. Table~\ref{tab:hyperparams_lr} summarises these settings for quick reference. As the compact U-Net experiments in \texttt{mNDWS\_UNetModel.ipynb} and \texttt{mNDWS\_EMA\_Polyak.ipynb} mature, their learning-rate schedules and loss compositions will be added alongside the logistic settings without placeholders.
+\subsubsection{Hyperparameter Configuration}
+The implemented logistic regression baseline trains with batch size 16, AdamW (learning rate $1\times10^{-3}$, weight decay $1\times10^{-4}$), 50 epochs, and no EMA. We optimise Binary Cross-Entropy with logits using a fixed $\texttt{pos\_weight}$ estimated once from the training loader, apply no gradient clipping, and reuse per-channel means/stds computed from 2,000 sampled tiles. A single call to \texttt{set\_seed(1337)} locks Python, NumPy, and PyTorch RNGs so threshold calibration and loader order are reproducible. Table~\ref{tab:hyperparams_lr} summarises these settings for quick reference.
 
 \begin{table}[t]
     \caption{Logistic regression baseline hyperparameters.}
     \label{tab:hyperparams_lr}
     \centering
-    \begin{tabular}{l l}
+    \begin{tabularx}{0.9\columnwidth}{l X}
         \hline
         Setting & Value \\
         \hline
         Batch size & $16$ tiles (per gradient step) \\
         Optimizer & AdamW ($1\times10^{-3}$ LR, $1\times10^{-4}$ weight decay) \\
         Epochs & $50$ (early-stop monitor only) \\
-        Loss & BCEWithLogitsLoss with fixed $\texttt{pos\_weight}$ from train ratio \\
+        Loss & BCEWithLogitsLoss with fixed \texttt{pos\_weight} from train ratio \\
         Gradient clip & None \\
         Normalization & Per-channel mean/std estimated once (2k samples) \\
         Calibration & Validation PR sweep, F1-optimal threshold \\
         Seeds & Global Python/NumPy/PyTorch RNG set to $1337$ \\
         \hline
-    \end{tabular}
+    \end{tabularx}
 \end{table}
 
-\subsection{Computation Footprint}
-Table~\ref{tab:lr_compute} reports the concrete computation metrics captured from the latest logistic regression run. These values provide a baseline for comparing upcoming U-Net experiments when they are ready.
+\subsubsection{Computation Footprint}
+
+Table~\ref{tab:lr_compute} reports the concrete computation metrics captured from the logistic regression model.
 
 \begin{table}[t]
     \caption{Logistic regression computation metrics.}
@@ -132,68 +129,66 @@ Table~\ref{tab:lr_compute} reports the concrete computation metrics captured fro
     \end{tabular}
 \end{table}
 
-Because the same logging hooks (wall-clock timers, throughput counters, and inference benchmarks) are embedded in \texttt{mNDWS\_UNetModel.ipynb} and \texttt{mNDWS\_EMA\_Polyak.ipynb}, the deeper models will slot into this table format once their experiments finish.
+\subsection{Physics-Prior Deep Model}
+We pair the same $64\times 64$ tiles with a physics-informed U-Net that augments the raw environmental stack with deterministic spread cues.
 
-\section{Preliminary Experiments}
-\label{sec:prelim}
-The end-to-end pipeline now converts mNDWS TFRecords into \texttt{.npz} tiles, confirms tensor shapes and normalization statistics, and materializes PyTorch loaders with reproducible splits. Figure~\ref{fig:lr_training_curves} summarises the 50-epoch logistic regression run: binary cross-entropy steadily declines while validation average precision (AP) improves and plateaus near epoch 30, where the F1 curve also flattens around $0.41$. The calibrated validation threshold of $0.785$ transfers cleanly to the held-out test split, yielding AP $=0.234$, precision $=0.380$, recall $=0.450$, and F1 $=0.412$. Feature ablations align with prior intuition: removing wind channels lowers validation F1 by approximately $0.04$, while dropping the latent fuel embeddings causes a smaller $0.01$ decline. These preliminary numbers establish a transparent baseline before introducing spatial CNNs and U-Net architectures; subsequent work will extend the same instrumentation (threshold calibration, robustness slices, and ablations) to the deeper models.
+\subsubsection{Physics-Prior U-Net Architecture}
+The model ingests a 21-channel snapshot of each tile: previous-day burn scars; wind components $(u,v)$; humidity, temperature, and related weather covariates; vegetation structure via NDVI and allied indices; and terrain terms (elevation-derived slope/aspect plus a barrier mask). Each channel encodes physical insight—prior burns anchor likely ignition points, wind vectors set advective direction, vegetation/fuel-moisture govern combustibility, and slope/aspect dictate how quickly flames accelerate upslope—so stacking them yields a complete daily landscape state.
+
+A key innovation is the explicit physics prior embedded in the shared \texttt{PhysicsFeatureBuilder}. Before the convolutional backbone sees the tensors, deterministic transforms project wind into the local slope frame, generate directional propagation fields aligned with the steepest ascent, and emit wind-speed and damping channels conditioned on fuels and humidity. These engineered layers sit beside the raw observations, giving the U-Net mechanistic cues consistent with wildfire-spread theory and improving sample efficiency and generalization.
+
+The predictive backbone is the Physics-Prior U-Net (base width $80$, $\approx12.0$M parameters). Encoder stages capture global fire-shape context (ridge alignments, dominant wind corridors), while decoder skip connections recover sharp perimeter boundaries. Severe class imbalance motivates the hybrid focal--Tversky loss: focal down-weights easy negatives and highlights boundary errors, whereas Tversky lets us tilt the false-positive/false-negative trade-off toward missed-spread penalties. Geometry-aware augmentation keeps those priors physically valid—whenever a tile is flipped or rotated, the same rotation matrix is applied to every directional channel (wind, slope, aspect) so the augmented fields remain self-consistent.
+
+Training stability comes from tracking three parameter trajectories: raw weights, an exponential moving average (EMA, decay $0.999$), and a Polyak (uniform) average. EMA damps high-frequency gradient noise near convergence, Polyak aggregates a longer history, and both act as low-cost ensembles that require no extra forward passes. Automatic mixed precision (AMP) plus the optimized feature-construction path, fused convolutions, and batched GPU inference from \texttt{train\_unet.py} keep latency ($\approx5.1$ ms per tile) and peak memory ($2.30$ GB) within deployment-friendly limits.
+
+\subsubsection{Hyperparameter Configuration}
+Training settings mirror the shared configuration file (\texttt{unet\_config.yaml}) and notebook; Table~\ref{tab:hyperparams_unet} summarises the exact values we keep fixed across runs:
 
 \begin{table}[t]
-    \caption{Validation metrics for the logistic regression baseline at the calibrated threshold.}
-    \label{tab:lr_metrics}
+    \caption{Physics-Prior U-Net hyperparameters.}
+    \label{tab:hyperparams_unet}
     \centering
-    \begin{tabular}{l c}
+    \begin{tabularx}{0.9\columnwidth}{l X}
         \hline
-        Metric & Value \\
+        Setting & Value \\
         \hline
-        Threshold & $0.785$ \\
-        Precision & $0.380$ \\
-        Recall & $0.450$ \\
-        F1 score & $0.412$ \\
-        Average Precision (AP) & $0.234$ \\
+        Batch size & $16$ tiles (per gradient step) \\
+        Optimizer & AdamW ($2\times10^{-4}$ LR, $1\times10^{-4}$ weight decay) \\
+        Epochs & $150$ (EMA/Polyak tracked) \\
+        Loss & Hybrid focal--Tversky ($\alpha=0.25$, $\gamma=2.0$, focal weight $0.5$; $T_{\alpha}=0.7$, $T_{\beta}=0.3$) \\
+        Pos-weight & Estimated once from training-loader burn ratio \\
+        Normalization & Channel means/stds from 2{,}000 sampled tiles \\
+        Augmentation & Flip/rotate with directional-channel remapping \\
+        Calibration & Validation PR sweep, F1-optimal threshold reused on TEST \\
+        Seeds & Global Python/NumPy/PyTorch RNG set to $1337$ via shared module \\
+        \hline
+    \end{tabularx}
+\end{table}
+
+\subsubsection{Computation Footprint and Performance}
+Table~\ref{tab:unet_compute} reports the concrete computation metrics captured from the Physics-Prior U-Net runs.
+
+\begin{table}[t]
+    \caption{Physics-Prior U-Net computation metrics.}
+    \label{tab:unet_compute}
+    \centering
+    \begin{tabular}{p{3.2cm}p{4.6cm}}
+        \hline
+        Quantity & Value \\
+        \hline
+        Learnable parameters & $12{,}038{,}401$ \\
+        Avg. epoch wall time & $2.062$ s (std.\ $3.094$ s) \\
+        Training throughput & $582.084$ tiles/s \\
+        Peak GPU memory & $2.299$ GB (AMP-enabled) \\
+        Inference latency (1 tile) & $5.814$ ms \\
+        Logged artifacts & Loss/AP/F1/IoU curves, EMA/Polyak checkpoints, PR + confusion plots \\
         \hline
     \end{tabular}
 \end{table}
 
-Figure~\ref{fig:lr_validation_pr} shows the corresponding precision--recall curve, with the operating point aligned to the statistics in Table~\ref{tab:lr_metrics}.
-
-To disentangle what signal each individual channel provides, we trained single-feature logistic regressors that retain exactly one standardized predictor while zeroing the others. Table~\ref{tab:lr_single_feature} summarises validation performance for these ablations. The previous-day burn mask alone reaches F1$^*=0.439$, nearly matching the full model's recall-driven behaviour, while the next best contributors---energy release component (\texttt{erc}), Palmer Drought Severity Index (\texttt{pdsi}), and the fire-danger burning index (\texttt{bi})---trail far behind. Wind components (\texttt{u}, \texttt{v}, \texttt{gust\_med}, \texttt{wind\_75}) and terrain terms (slope, aspect) deliver only modest gains when used in isolation. This confirms that the linear baseline leans heavily on persistence from the previous perimeter and underscores why spatial models need to learn interactions among wind, fuels, and topography to improve spread anticipation.
-
-\begin{table}[t]
-    \caption{Single-feature validation ablations for the logistic regression baseline. Models retain only the listed channel while zeroing all others. Metrics are reported at the F1-optimal threshold.}
-    \label{tab:lr_single_feature}
-    \centering
-    \begin{tabular}{lcc}
-        \hline
-        Feature & AP & F1$^*$ \\
-        \hline
-        previous burn mask (\texttt{prev\_fire}) & 0.210 & 0.439 \\
-        energy release component (\texttt{erc}) & 0.046 & 0.094 \\
-        Palmer Drought Severity Index (\texttt{pdsi}) & 0.043 & 0.089 \\
-        burning index (\texttt{bi}) & 0.043 & 0.088 \\
-        relative humidity proxy (\texttt{rh}) & 0.040 & 0.073 \\
-        surface temperature (\texttt{temp}) & 0.037 & 0.068 \\
-        meridional wind (\texttt{v}) & 0.033 & 0.065 \\
-        slope & 0.035 & 0.065 \\
-        median gust (\texttt{gust\_med}) & 0.034 & 0.065 \\
-        precipitation (\texttt{pr}) & 0.032 & 0.063 \\
-        barrier mask (\texttt{barrier}) & 0.032 & 0.062 \\
-        latent fuel embedding 3 (\texttt{fuel3}) & 0.030 & 0.062 \\
-        latent fuel embedding 2 (\texttt{fuel2}) & 0.032 & 0.061 \\
-        latent fuel embedding 1 (\texttt{fuel1}) & 0.029 & 0.061 \\
-        vegetation index (\texttt{ndvi}) & 0.028 & 0.061 \\
-        water mask (\texttt{water}) & 0.031 & 0.060 \\
-        zonal wind (\texttt{u}) & 0.030 & 0.060 \\
-        impervious mask (\texttt{impervious}) & 0.030 & 0.060 \\
-        75th-percentile wind (\texttt{wind\_75}) & 0.027 & 0.060 \\
-        aspect & 0.030 & 0.060 \\
-        composite drought metric (\texttt{chili}) & 0.029 & 0.059 \\
-        \hline
-    \end{tabular}
-\end{table}
-
-\subsection{Error Analysis}
-Qualitative inspection and aggregate diagnostics show that the linear baseline mostly memorizes yesterday's perimeter instead of forecasting forward spread. In Figure~\ref{fig:lr_tile_example} the predicted mask is visually almost identical to the previous-day burn extent and fails to anticipate the new ignition lobes visible in the next-day label, underscoring the need for spatial context. The validation confusion matrix in Figure~\ref{fig:lr_confusion} (placeholder) highlights the severe class imbalance: most errors are false positives in low-burn regions, yet the calibrated operating point still captures roughly 45\% of true positives. Together these analyses point to the limitation of per-pixel logistic regression and motivate convolutional baselines that can reason about local gradients, wind direction, and fuel continuity.
+\section{Results}
+\label{sec:init_results}
+Figure~\ref{fig:lr_training_curves} summarises the 50-epoch logistic regression run: binary cross-entropy steadily declines while validation average precision (AP) improves and plateaus near epoch~30, where the F1 curve also flattens around $0.41$. Figure~\ref{fig:lr_validation_pr} reports the aligned precision--recall curve, highlighting the calibrated operating point later reused on the test split. As a sanity-check baseline we also score the raw previous-day burn mask---a zero-parameter ``persistence'' forecast that simply thresholds yesterday's perimeter---to quantify how far a learning-free heuristic can go. The Physics-Prior U-Net follows the same reporting template, with Figures~\ref{fig:unet_training_curves} and~\ref{fig:unet_validation_pr} capturing its training dynamics and validation precision--recall tradeoffs, and Table~\ref{tab:model_metrics} consolidating the validation/test AP, F1, IoU, and thresholds for every model variant currently evaluated.
 
 \begin{figure}[t]
     \centering
@@ -211,6 +206,196 @@ Qualitative inspection and aggregate diagnostics show that the linear baseline m
 
 \begin{figure}[t]
     \centering
+    \fbox{\rule{0pt}{0.35\linewidth}\rule{0.9\columnwidth}{0pt}}
+    \caption{Placeholder: Physics-Prior U-Net training loss and validation metrics across 150 epochs.}
+    \label{fig:unet_training_curves}
+\end{figure}
+
+\begin{figure}[t]
+    \centering
+    \fbox{\rule{0pt}{0.35\linewidth}\rule{0.9\columnwidth}{0pt}}
+    \caption{Placeholder: Validation precision--recall curve for the Physics-Prior U-Net baseline.}
+    \label{fig:unet_validation_pr}
+\end{figure}
+
+\begin{table}[t]
+    \caption{Model-wide validation/test metrics at their calibrated thresholds.}
+    \label{tab:model_metrics}
+    \centering
+    \begin{tabular}{l l l c c c c}
+        \hline
+        Model & Variant & Split & AP & F1 & IoU & $t$ \\
+        \hline
+        Prev Mask & -- & Val & $0.2098$ & $0.4393$ & $0.2815$ & $1.000$ \\
+        Prev Mask & -- & Test & $0.1946$ & $0.4197$ & $0.2655$ & $1.000$ \\
+        LogReg & -- & Val & $0.2544$ & $0.4295$ & $0.2735$ & $0.781$ \\
+        LogReg & -- & Test & $0.2340$ & $0.4130$ & $0.2602$ & $0.781$ \\
+        Physics U-Net & Raw & Val & $0.5130$ & $0.5751$ & $0.4036$ & $0.310$ \\
+        Physics U-Net & Raw & Test & $0.4795$ & $0.5296$ & $0.3602$ & $0.310$ \\
+        Physics U-Net & EMA & Val & $0.5212$ & $0.5733$ & $0.4018$ & $0.089$ \\
+        Physics U-Net & EMA & Test & $0.4848$ & $0.5306$ & $0.3611$ & $0.089$ \\
+        Physics U-Net & Polyak & Val & $0.5002$ & $0.5407$ & $0.3705$ & $0.444$ \\
+        Physics U-Net & Polyak & Test & $0.4799$ & $0.5176$ & $0.3492$ & $0.444$ \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\section{Experiments}
+\label{sec:experiments}
+
+\subsection{Comparisons}
+\label{subsec:comparisons}
+Across representative tiles, the logistic regression (LR) baseline fails whenever spatial structure matters, while the Physics-Prior U-Net usually reconstructs the geometry and constraints of next-day spread. Both models, however, break down in low-signal, highly stochastic cases. This contrast highlights where the U-Net’s inductive bias helps—and where limited predictability caps performance.
+
+\paragraph{Simple Success Case (Figure~\ref{fig:qual_success}, idx~83)} This tile contains a relatively compact region of next-day spread. Both models successfully capture the main lobe of the fire, with high IoU for LR ($0.63$) and the U-Net ($0.62$). The Physics-Prior U-Net produces a slightly smoother and more contiguous perimeter, whereas LR tends to produce a blockier mask with isolated pixels at the burn edge.
+
+\paragraph{LR Failure, U-Net Success (Figure~\ref{fig:qual_lr_fail}, idx~9)} The next-day spread is small and fragmented. The LR baseline only partially detects the event, underestimating its extent and merging nearby pixels into a coarse blob (IoU~$\approx0.30$). The Physics-Prior U-Net more accurately traces the thin fire lobe (IoU~$\approx0.60$), preserving spatial structure and aligning closely with the true perimeter.
+
+\paragraph{Shared Failure (Figure~\ref{fig:qual_shared_fail}, idx~39)} The next-day burn covers a wide, highly irregular area with disconnected lobes. Both models struggle: LR produces scattered false positives while missing major sections of the perimeter, and the U-Net only recovers a subset of the main lobe. The complexity and scale of the event yield low IoU for both models, illustrating a challenging failure mode for data-driven prediction.
+
+\begin{figure}[t]
+    \centering
+    \IfFileExists{scratch/final-deliv/figures/simplesuccess.png}{%
+        \includegraphics[width=0.95\linewidth]{scratch/final-deliv/figures/simplesuccess.png}%
+    }{%
+        \fbox{\rule{0pt}{0.35\linewidth}\rule{0.9\columnwidth}{0pt}}%
+    }
+    \caption{Qualitative comparison tile (idx~83) illustrating a simple success case for both LR and Physics-Prior U-Net.}
+    \label{fig:qual_success}
+\end{figure}
+
+\begin{figure}[t]
+    \centering
+    \IfFileExists{scratch/final-deliv/figures/lrfailure.png}{%
+        \includegraphics[width=0.95\linewidth]{scratch/final-deliv/figures/lrfailure.png}%
+    }{%
+        \fbox{\rule{0pt}{0.35\linewidth}\rule{0.9\columnwidth}{0pt}}%
+    }
+    \caption{Qualitative comparison tile (idx~9) showing LR failure versus U-Net success.}
+    \label{fig:qual_lr_fail}
+\end{figure}
+
+\begin{figure}[t]
+    \centering
+    \IfFileExists{scratch/final-deliv/figures/sharedfailure.png}{%
+        \includegraphics[width=0.95\linewidth]{scratch/final-deliv/figures/sharedfailure.png}%
+    }{%
+        \fbox{\rule{0pt}{0.35\linewidth}\rule{0.9\columnwidth}{0pt}}%
+    }
+    \caption{Qualitative comparison tile (idx~39) where both models fail due to complex multi-lobed spread.}
+    \label{fig:qual_shared_fail}
+\end{figure}
+
+Across the evaluation set, the dominant systematic errors arise from missed new spread (false negatives) and perimeter overprediction (false positives). Missed spread events typically occur in areas with sparse ignition cues---such as regions of low vegetation contrast, weak wind alignment, or complex topography---where the model struggles to infer where new fire will emerge beyond the existing perimeter. Overprediction, by contrast, tends to occur along broad fronts with strong wind inputs, where the model extends the fire line farther than observed, especially in low-fuel or discontinuous terrain.
+
+Comparing models, the logistic regression baseline exhibits primarily non-spatial errors: it underpredicts almost all new spread, producing conservative masks that track only the immediate vicinity of the previous burn scar. The Physics-Prior U-Net shows markedly improved spatial reasoning, correctly identifying directional spread mechanisms, but still overpredicts along uniform wind-driven fronts and occasionally misses small, isolated ignitions in fragmented landscapes. These differences highlight that spatial models reduce---but do not eliminate---the intrinsic uncertainty introduced by fine-scale fuel heterogeneity and microclimate effects. Table~\ref{tab:error_modes} summarises these qualitative error modes.
+
+\begin{table}[t]
+    \caption{Qualitative error modes observed across the evaluation set.}
+    \label{tab:error_modes}
+    \centering
+    \begin{tabularx}{\columnwidth}{p{0.17\columnwidth} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+        \hline
+        Error Type & Typical Cause & LR Baseline Behavior & Physics-Prior U-Net Behavior \\
+        \hline
+        Missed new spread (FN) & Low-fuel areas, weak ignition cues, complex terrain, fragmented vegetation & Extremely common; LR rarely predicts spread beyond the previous burn scar & Less frequent; U-Net captures most directional spread but still misses small, isolated ignitions \\
+        Perimeter overprediction (FP) & Strong wind signals, uniform fuel fields, ambiguous slope-induced spread & Rare; LR is overly conservative and predicts minimal spread & More common; U-Net sometimes extends the fire line too aggressively along wind-aligned fronts \\
+        Fragmented boundary errors & Heterogeneous fuels, fine-scale topography not captured by inputs & LR produces overly smooth, coarse predictions with limited spatial detail & U-Net predicts detailed boundaries but may introduce spurious patches or disconnected "fingers" \\
+        Wind misalignment errors & Rapid wind shifts or microclimates absent in coarse inputs & LR cannot utilise wind direction effectively, leading to minimal directional prediction & U-Net generally aligns with wind but may exaggerate lateral movement under strong winds \\
+        \hline
+    \end{tabularx}
+\end{table}
+
+\subsection{Ablation Results}
+\label{subsec:ablations}
+Two ablation sweeps probe which inputs actually drive performance: (i) removing entire feature families (wind, fuel, vegetation/drought, topography) from the shared pipeline while holding training seeds fixed, and (ii) removing the previous-day burn mask to quantify how much each model leans on persistence. Each configuration is averaged over fifty stochastic ablations per model, and we report deltas in F1/AP relative to the full feature stack so the sign of every change is immediately visible.
+
+\paragraph{Feature-family sensitivity} Table~\ref{tab:feature_family_ablation} lists how much the logistic regression (LR) baseline and Physics-Prior U-Net degrade or improve when one feature family is withheld. LR shows limited dependence on any single family: removing fuels has virtually no effect, topography slightly hurts both F1 ($-0.005$) and AP ($-0.0005$), while removing wind oddly improves F1 by $+0.005$ despite a modest AP drop. Vegetation/drought covariates matter only marginally. The U-Net, by contrast, experiences sizable losses when wind or topography are removed (F1 drops $0.0195$ and $0.0163$, respectively), confirming that spatial models are actually leveraging those directional cues. Vegetation/drought still rank last but fuel features deliver a measurable boost compared to the LR case.
+
+\begin{table}[t]
+    \caption{Average change in validation F1/AP when individual feature families are removed (negative means performance drops relative to the full stack).}
+    \label{tab:feature_family_ablation}
+    \centering
+    \resizebox{\columnwidth}{!}{%
+    \begin{tabular}{l l c c c c c}
+        \hline
+        Model & Metric & Baseline & $\Delta_{-\text{wind}}$ & $\Delta_{-\text{fuel}}$ & $\Delta_{-\text{veg/dry}}$ & $\Delta_{-\text{topo}}$ \\
+        \hline
+        LR & F1 & $0.4130$ & $+0.0050$ & $+0.0000$ & $+0.0030$ & $-0.0050$ \\
+        LR & AP & $0.2340$ & $-0.0109$ & $-0.0055$ & $-0.0127$ & $-0.0005$ \\
+        U-Net & F1 & $0.5064$ & $-0.0195$ & $-0.0145$ & $+0.0004$ & $-0.0163$ \\
+        U-Net & AP & $0.4511$ & $-0.0171$ & $-0.0110$ & $+0.0051$ & $-0.0158$ \\
+        \hline
+    \end{tabular}%
+    }
+\end{table}
+
+\paragraph{Dependence on the previous burn mask} Table~\ref{tab:burn_mask_ablation} isolates the effect of removing only the lagged burn mask. As expected from the qualitative analysis, the LR baseline collapses without that channel (F1 drops by $0.303$, AP by $0.1722$), reinforcing that it mostly memorizes yesterday's perimeter. The U-Net barely moves (F1 $-0.0018$, AP $+0.0043$), indicating it truly learns spread dynamics from the remaining covariates. This divergence highlights why spatial models are necessary for operational forecasting: they generalize beyond pure persistence and retain skill when the lagged mask is noisy or missing.
+
+\begin{table}[t]
+    \caption{Effect of removing the previous-day burn mask (50-run average). Entries report absolute metrics and deltas relative to the full feature stack.}
+    \label{tab:burn_mask_ablation}
+    \centering
+    \begin{tabular}{l l c c}
+        \hline
+        Model & Metric & Baseline & $\Delta_{-\text{burn mask}}$ \\
+        \hline
+        LR & F1 & $0.4130$ & $-0.3030$ \\
+        LR & AP & $0.2340$ & $-0.1722$ \\
+        U-Net & F1 & $0.5064$ & $-0.0018$ \\
+        U-Net & AP & $0.4511$ & $+0.0043$ \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsection{Robustness Slices}
+\label{subsec:robustness}
+The robustness study focuses on the Physics-Prior U-Net because it is the only model with sufficient headroom to expose stress-induced degradations—the logistic regression baseline already collapses once the previous burn mask is disturbed, so slice-level attribution would be dominated by persistence artefacts rather than the underlying covariates. We therefore rerun the calibrated U-Net on tiles partitioned by high wind exposure (top 20\% of the empirical distribution, $u^2+v^2 \geq 4.326~\text{m}^2/\text{s}^2$, i.e., wind speed $\geq 4.326$~m/s) and high impervious fraction (top 5\%, impervious coverage $\geq 0.02$, representing $2\%$ of each pixel). Each slice is evaluated separately against its complement so we can contrast ``high'' versus ``other'' contexts using the same checkpoint.
+
+Table~\ref{tab:robustness_slices} summarizes the resulting F1 and AP scores. Both stressors reduce accuracy: strong-wind tiles incur roughly six-point drops in both F1 (0.49 vs.
+0.55) and AP (0.46 vs.
+0.52), indicating that advection-dominated spread is still under-represented in the training set despite the physics priors. Urban/WUI exposure also hurts but less severely (F1 loss $\approx0.03$, AP loss $\approx0.04$), likely because impervious regions simultaneously confound the burn mask input and suppress true spread, creating ambiguous supervision. Together these slices flag the two regimes where future modeling should invest—explicit wind-conditioning (e.g., directional attention or recurrent advection blocks) and higher-fidelity treatment of built surfaces.
+
+\begin{table}[t]
+    \caption{Physics-Prior U-Net robustness slices. High-wind tiles are those with wind magnitude $\geq 4.326$~m/s (80th percentile); high impervious tiles have impervious fraction $\geq 0.02$ (2\% of the pixel, 95th percentile).}
+    \label{tab:robustness_slices}
+    \centering
+    \begin{tabular}{l l c c}
+        \hline
+        Feature & Metric & High tiles & Other tiles \\
+        \hline
+        Wind & F1 & $0.490$ & $0.550$ \\
+        Wind & AP & $0.460$ & $0.520$ \\
+        Impervious & F1 & $0.510$ & $0.540$ \\
+        Impervious & AP & $0.470$ & $0.510$ \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\section{Results and Discussion}
+
+Table~\ref{tab:model_metrics} shows a clear ranking of the three forecasting baselines. The zero-parameter persistence mask reaches F1 $=0.44$ / AP $=0.21$ / IoU $=0.28$ simply by repeating yesterday's perimeter, highlighting how much predictive power still comes from knowing where the fire already is. The channel-aware logistic regression improves AP to $0.23$ but actually loses F1/IoU because it continues to act as a per-pixel smoother with little spatial context. Once spatial structure is introduced through the Physics-Prior U-Net, validation F1 jumps to $0.57$ (a +0.14 absolute gain over LR) and IoU rises to $0.40$, confirming RQ1: convolutional inductive biases convert the same multimodal stack into substantially better next-day spread predictions.
+
+These accuracy gains arrive with a modest compute cost. The LR baseline processes a tile in $0.103$~ms on GPU (Table~\ref{tab:lr_compute}), whereas the compact U-Net requires $5.8$~ms (Table~\ref{tab:unet_compute})---about a $\times56$ slowdown per tile but still below real-time thresholds and easily amortized when batching large fire perimeters. The additional runtime buys $+0.12$ F1, $+0.17$ AP, and $+0.13$ IoU improvements, so the accuracy--compute trade-off strongly favors the spatial model for any operational use case that tolerates millisecond-level latency.
+
+Ablation studies diagnose when this spatial reasoning matters. Removing wind or topography barely affects logistic regression but drops U-Net F1 by $0.02$ and $0.016$ (Table~\ref{tab:feature_family_ablation}), implying the convolutional filters actually ingest directional cues to extrapolate the perimeter. Likewise, stripping the previous burn mask catastrophically collapses LR (F1 $-0.30$) while the U-Net remains stable, demonstrating that spatial context lets the deep model generalize beyond pure persistence. In practice this means compact U-Nets help whenever tomorrow's growth is not a simple dilation of today's burn scar---for example, when wind accelerates flames across unburned valleys or slope channels heat upslope spread.
+
+Robustness slices further specify the deployment envelope. Under strong winds ($\geq 4.3$~m/s) the U-Net loses roughly six F1/AP points, whereas urban/wildland interface tiles incur only three-point drops (Table~\ref{tab:robustness_slices}). Spatial models still help in these stressors---they outperform LR even there---but the gap narrows because advection-heavy events are underrepresented in training. This prioritizes future data collection on wind-driven incidents and motivates architectural tweaks (directional attention, explicit advection blocks) to preserve the current advantage in the very regimes where planners most need guidance.
+
+Qualitative diagnostics (Figures~\ref{fig:lr_tile_example}--\ref{fig:lr_confusion}) echo the quantitative story: the LR baseline tends to copy the previous burn mask and misses new lobes, while the U-Net reconstructs coherent, wind-aligned fronts yet can still overextend in feature-poor terrain. In short, spatial models help most when forward spread depends on multi-pixel structure (wind corridors, ridgelines, fuel mosaics). When tomorrow's perimeter is a near-perfect persistence of today's, the logistic regression is competitive at a fraction of the compute cost, but otherwise the compact U-Net provides materially higher fidelity predictions at still-manageable latency.
+
+\section{Limitations and Future Directions}
+
+Our results rest on a dataset whose structure makes temporal leakage difficult to eliminate completely. mNDWS does not ship unique incident identifiers, so tiles that belong to the same fire can appear across consecutive days in both training and evaluation splits despite nominally disjoint indices. Because we sample tiles independently, the logistic regression and U-Net might partially memorize a fire's trajectory if adjacent days from the same event appear in both train and eval. Future releases should tag each tile with a fire ID or ignition timestamp so splits can enforce incident-level separation.
+
+The absence of geolocation metadata inside the converted $64\times64$ rasters creates another limitation. Fires routinely span multiple tiles on the same day (e.g., an east-west front that crosses tile boundaries), yet our pipeline cannot stitch those tiles into a coherent geospatial footprint. This prevents us from reasoning about cross-tile spread or capturing interactions with large-scale features such as valleys or metropolitan areas. Adding explicit latitude/longitude corners or tile adjacency graphs would allow models to reason about perimeters that grow beyond a single raster.
+
+Even with 20,097 tiles, the dataset represents only a few hundred unique fires (Section~\ref{sec:method}), meaning the true sample size for independent events remains small. This constrains generalization to rare regimes (wind-driven crown fires, complex smoke plumes) and shows up in the robustness slices where high-wind tiles underperform. Gathering more annotated incidents, especially from years with extreme weather, should be a priority.
+
+Finally, our modeling paradigm treats next-day spread as binary segmentation. While intuitive, this view misses richer temporal dynamics such as the vector magnitude and direction of the advancing front. A promising extension is to recast the task as predicting per-pixel motion fields or a coarse vector describing forward velocity, heading, and volumetric growth. Such a formulation could share components with optical-flow or trajectory forecasting models, capture uncertainty more naturally, and plug directly into downstream simulators for evacuation planning. Combining that vector-based view with longer temporal context (multiple previous days instead of one) and explicit temporal encoding (transformers, autoregressive decoders) would further reduce leakage and improve realism.
+
+\begin{figure}[t]
+    \centering
     \includegraphics[width=0.95\linewidth]{deliverable-2/figures/lr_tile_example.png}
     \caption{Example tile showing previous burn mask, thresholded logistic regression prediction, and next-day ground truth. The prediction largely repeats the previous perimeter and fails to anticipate the forward spread visible in the label.}
     \label{fig:lr_tile_example}
@@ -224,20 +409,12 @@ Qualitative inspection and aggregate diagnostics show that the linear baseline m
 \end{figure}
 
 
-\section{Next Steps}
-\label{sec:nextsteps}
-\subsection{Immediate Priorities}
-Immediate priorities are: (i) finish training the compact U-Net baseline with mixed-precision and capture the same loss/metric traces as the logistic regression reference; (ii) experiment with additional lightweight CNN variants to establish how much benefit spatial context provides over the completed logistic baseline; (iii) implement the planned robustness stratifications (\texttt{wind\_75}, impervious fraction, ecoregion bands) once metadata joins are validated; and (iv) extend calibration plots and metric logging to every CNN/U-Net run so comparisons remain aligned with the linear baseline.
-
-\subsection{Ablation Study Plan}
-We will conduct single-factor ablations that remove entire feature families (wind, fuels, vegetation/drought indicators, and topography) from the shared data pipeline, retrain the logistic regression and CNN/U-Net baselines with identical seeds, and report changes in AP, F1, and calibration thresholds. Additional experiments will test temporal context by withholding the previous fire mask and evaluate robustness-specific slices (high wind, WUI, ecoregion bands). Results will be logged using a consistent configuration template so that improvements to deeper models can be compared directly against the linear baseline.
-
 \section{Member Contributions}
 Based on the experimental design guidelines the remaining analysis will be broken up as follows: 
 \begin{itemize}
-    \item Baseline Selection: Chelsey Blowe
-    \item Ablation Studies: Clay Harris
-    \item Metrics to Report/ Future Work: Hannah Richardson
+    \item Physics Prior: Chelsey Blowe
+    \item Robustness Slices: Clay Harris
+    \item Ablation Studies: Hannah Richardson
 \end{itemize}
 
 
