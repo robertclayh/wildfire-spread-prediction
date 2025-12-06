@@ -192,28 +192,28 @@ Figure~\ref{fig:lr_training_curves} summarises the 50-epoch logistic regression 
 
 \begin{figure}[t]
     \centering
-    \includegraphics[width=0.95\linewidth]{deliverable-2/figures/lr_training_curves.png}
+    \includegraphics[width=0.95\linewidth]{scratch/final-deliv/figures/lr_training_curves.png}
     \caption{Logistic regression training loss and validation precision--recall metrics over 50 epochs. F1 gains flatten beyond roughly 30 epochs.}
     \label{fig:lr_training_curves}
 \end{figure}
 
 \begin{figure}[t]
     \centering
-    \includegraphics[width=0.9\linewidth]{deliverable-2/figures/lr_ap_curve.png}
+    \includegraphics[width=0.9\linewidth]{scratch/final-deliv/figures/lr_pr_curve.png}
     \caption{Validation precision--recall curve for the logistic baseline.}
     \label{fig:lr_validation_pr}
 \end{figure}
 
 \begin{figure}[t]
     \centering
-    \fbox{\rule{0pt}{0.35\linewidth}\rule{0.9\columnwidth}{0pt}}
+    \includegraphics[width=0.9\linewidth]{scratch/final-deliv/figures/unet_training_curves.png}    
     \caption{Placeholder: Physics-Prior U-Net training loss and validation metrics across 150 epochs.}
     \label{fig:unet_training_curves}
 \end{figure}
 
 \begin{figure}[t]
     \centering
-    \fbox{\rule{0pt}{0.35\linewidth}\rule{0.9\columnwidth}{0pt}}
+    \includegraphics[width=0.9\linewidth]{scratch/final-deliv/figures/unet_validation_pr.png}    
     \caption{Placeholder: Validation precision--recall curve for the Physics-Prior U-Net baseline.}
     \label{fig:unet_validation_pr}
 \end{figure}
@@ -249,10 +249,6 @@ Across representative tiles, the logistic regression (LR) baseline fails wheneve
 
 \paragraph{Simple Success Case (Figure~\ref{fig:qual_success}, idx~83)} This tile contains a relatively compact region of next-day spread. Both models successfully capture the main lobe of the fire, with high IoU for LR ($0.63$) and the U-Net ($0.62$). The Physics-Prior U-Net produces a slightly smoother and more contiguous perimeter, whereas LR tends to produce a blockier mask with isolated pixels at the burn edge.
 
-\paragraph{LR Failure, U-Net Success (Figure~\ref{fig:qual_lr_fail}, idx~9)} The next-day spread is small and fragmented. The LR baseline only partially detects the event, underestimating its extent and merging nearby pixels into a coarse blob (IoU~$\approx0.30$). The Physics-Prior U-Net more accurately traces the thin fire lobe (IoU~$\approx0.60$), preserving spatial structure and aligning closely with the true perimeter.
-
-\paragraph{Shared Failure (Figure~\ref{fig:qual_shared_fail}, idx~39)} The next-day burn covers a wide, highly irregular area with disconnected lobes. Both models struggle: LR produces scattered false positives while missing major sections of the perimeter, and the U-Net only recovers a subset of the main lobe. The complexity and scale of the event yield low IoU for both models, illustrating a challenging failure mode for data-driven prediction.
-
 \begin{figure}[t]
     \centering
     \IfFileExists{scratch/final-deliv/figures/simplesuccess.png}{%
@@ -264,6 +260,8 @@ Across representative tiles, the logistic regression (LR) baseline fails wheneve
     \label{fig:qual_success}
 \end{figure}
 
+\paragraph{LR Failure, U-Net Success (Figure~\ref{fig:qual_lr_fail}, idx~9)} The next-day spread is small and fragmented. The LR baseline only partially detects the event, underestimating its extent and merging nearby pixels into a coarse blob (IoU~$\approx0.30$). The Physics-Prior U-Net more accurately traces the thin fire lobe (IoU~$\approx0.60$), preserving spatial structure and aligning closely with the true perimeter.
+
 \begin{figure}[t]
     \centering
     \IfFileExists{scratch/final-deliv/figures/lrfailure.png}{%
@@ -274,6 +272,8 @@ Across representative tiles, the logistic regression (LR) baseline fails wheneve
     \caption{Qualitative comparison tile (idx~9) showing LR failure versus U-Net success.}
     \label{fig:qual_lr_fail}
 \end{figure}
+
+\paragraph{Shared Failure (Figure~\ref{fig:qual_shared_fail}, idx~39)} The next-day burn covers a wide, highly irregular area with disconnected lobes. Both models struggle: LR produces scattered false positives while missing major sections of the perimeter, and the U-Net only recovers a subset of the main lobe. The complexity and scale of the event yield low IoU for both models, illustrating a challenging failure mode for data-driven prediction.
 
 \begin{figure}[t]
     \centering
@@ -352,8 +352,7 @@ Two ablation sweeps probe which inputs actually drive performance: (i) removing 
 \label{subsec:robustness}
 The robustness study focuses on the Physics-Prior U-Net because it is the only model with sufficient headroom to expose stress-induced degradations—the logistic regression baseline already collapses once the previous burn mask is disturbed, so slice-level attribution would be dominated by persistence artefacts rather than the underlying covariates. We therefore rerun the calibrated U-Net on tiles partitioned by high wind exposure (top 20\% of the empirical distribution, $u^2+v^2 \geq 4.326~\text{m}^2/\text{s}^2$, i.e., wind speed $\geq 4.326$~m/s) and high impervious fraction (top 5\%, impervious coverage $\geq 0.02$, representing $2\%$ of each pixel). Each slice is evaluated separately against its complement so we can contrast ``high'' versus ``other'' contexts using the same checkpoint.
 
-Table~\ref{tab:robustness_slices} summarizes the resulting F1 and AP scores. Both stressors reduce accuracy: strong-wind tiles incur roughly six-point drops in both F1 (0.49 vs.
-0.55) and AP (0.46 vs.
+Table~\ref{tab:robustness_slices} summarizes the resulting F1 and AP scores. Both stressors reduce accuracy: strong-wind tiles incur roughly six-point drops in both F1 (0.49 vs. 0.55) and AP (0.46 vs.
 0.52), indicating that advection-dominated spread is still under-represented in the training set despite the physics priors. Urban/WUI exposure also hurts but less severely (F1 loss $\approx0.03$, AP loss $\approx0.04$), likely because impervious regions simultaneously confound the burn mask input and suppress true spread, creating ambiguous supervision. Together these slices flag the two regimes where future modeling should invest—explicit wind-conditioning (e.g., directional attention or recurrent advection blocks) and higher-fidelity treatment of built surfaces.
 
 \begin{table}[t]
@@ -382,7 +381,7 @@ Ablation studies diagnose when this spatial reasoning matters. Removing wind or 
 
 Robustness slices further specify the deployment envelope. Under strong winds ($\geq 4.3$~m/s) the U-Net loses roughly six F1/AP points, whereas urban/wildland interface tiles incur only three-point drops (Table~\ref{tab:robustness_slices}). Spatial models still help in these stressors---they outperform LR even there---but the gap narrows because advection-heavy events are underrepresented in training. This prioritizes future data collection on wind-driven incidents and motivates architectural tweaks (directional attention, explicit advection blocks) to preserve the current advantage in the very regimes where planners most need guidance.
 
-Qualitative diagnostics (Figures~\ref{fig:lr_tile_example}--\ref{fig:lr_confusion}) echo the quantitative story: the LR baseline tends to copy the previous burn mask and misses new lobes, while the U-Net reconstructs coherent, wind-aligned fronts yet can still overextend in feature-poor terrain. In short, spatial models help most when forward spread depends on multi-pixel structure (wind corridors, ridgelines, fuel mosaics). When tomorrow's perimeter is a near-perfect persistence of today's, the logistic regression is competitive at a fraction of the compute cost, but otherwise the compact U-Net provides materially higher fidelity predictions at still-manageable latency.
+Qualitative diagnostics (Figures~\ref{fig:qual_success}--\ref{fig:qual_shared_fail}) echo the quantitative story: the LR baseline tends to copy the previous burn mask and misses new lobes, while the U-Net reconstructs coherent, wind-aligned fronts yet can still overextend in feature-poor terrain. In short, spatial models help most when forward spread depends on multi-pixel structure (wind corridors, ridgelines, fuel mosaics). When tomorrow's perimeter is a near-perfect persistence of today's, the logistic regression is competitive at a fraction of the compute cost, but otherwise the compact U-Net provides materially higher fidelity predictions at still-manageable latency.
 
 \section{Limitations and Future Directions}
 
@@ -394,29 +393,12 @@ Even with 20,097 tiles, the dataset represents only a few hundred unique fires (
 
 Finally, our modeling paradigm treats next-day spread as binary segmentation. While intuitive, this view misses richer temporal dynamics such as the vector magnitude and direction of the advancing front. A promising extension is to recast the task as predicting per-pixel motion fields or a coarse vector describing forward velocity, heading, and volumetric growth. Such a formulation could share components with optical-flow or trajectory forecasting models, capture uncertainty more naturally, and plug directly into downstream simulators for evacuation planning. Combining that vector-based view with longer temporal context (multiple previous days instead of one) and explicit temporal encoding (transformers, autoregressive decoders) would further reduce leakage and improve realism.
 
-\begin{figure}[t]
-    \centering
-    \includegraphics[width=0.95\linewidth]{deliverable-2/figures/lr_tile_example.png}
-    \caption{Example tile showing previous burn mask, thresholded logistic regression prediction, and next-day ground truth. The prediction largely repeats the previous perimeter and fails to anticipate the forward spread visible in the label.}
-    \label{fig:lr_tile_example}
-\end{figure}
-
-\begin{figure}[t]
-    \centering
-    \includegraphics[width=0.8\linewidth]{deliverable-2/figures/lr_confusion_matrices.png}
-    \caption{Validation confusion matrix at the calibrated probability threshold ($\approx0.785$).}
-    \label{fig:lr_confusion}
-\end{figure}
-
-
 \section{Member Contributions}
-Based on the experimental design guidelines the remaining analysis will be broken up as follows: 
 \begin{itemize}
-    \item Physics Prior: Chelsey Blowe
-    \item Robustness Slices: Clay Harris
-    \item Ablation Studies: Hannah Richardson
+    \item Robert Clay Harris: Managed the codebase and GitHub repository, drove code cleanup and QA, produced the the robustness-slice analysis, and synthesized and edited the manuscript.
+    \item Hannah Richardson: Led the feature-family ablation studies, authored the GitHub README, contributed to code QA/cleanup, and handled targeted manuscript revisions.
+    \item Chelsey Blowe: Conducted the preliminary logistic regression and U-Net modeling runs and produced the qualitative model comparisons.
 \end{itemize}
-
 
 \begin{thebibliography}{00}
 
