@@ -36,6 +36,11 @@ mNDWS/
 ├── mNDWS_UNetModel.ipynb # Physics-enhanced UNet model
 ├── mNDWS_ResNet18UNet.ipynb # UNet with ResNet-18 encoder
 ├── mNDWS_EMA_Polyak.ipynb # EMA + Polyak comparison notebook
+├── requirements.txt
+├── logreg_config.yaml 
+├── unet_config.yaml 
+├── scratch folder # contains information including intermediate results for transparency 
+├── outputs folder # contains finalized plots and data files
 └── README.md
 
 
