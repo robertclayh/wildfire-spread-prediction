@@ -48,6 +48,12 @@ mNDWS/
 
 ---
 
+## 0. Set Up — `Requirements.txt`
+Contains information on packages needed to run code and their version number. 
+---
+
+---
+
 ## 1. Data Pipeline — `mNDWS_DataPipeline.py`
 
 This script is the **foundation** of the project.
@@ -79,24 +85,37 @@ This script is the **foundation** of the project.
 
 ---
 
-## 2. Logistic Regression Baseline — `mNDWS_LogRegModel.ipynb`
+## 2. Models — `mNDWS_models.py`
 
 A simple interpretability-first model:
 
 - Loads NPZ tiles  
 - Flattens features  
-- Trains logistic regression  
-- Reports:
+---
+
+## 3. Logistic Regression Baseline — 
+
+`logreg_config.yaml`
+
+`train_logreg.py`
+
+A simple interpretability-first model:
+  
+- Trains logistic regression
+
+`eval_models.py`
+- Reports logistic regression:
 
   - Average Precision (AP)  
   - F1  
   - Precision–Recall curves  
 
-This establishes a baseline before deep learning.
-
 ---
+## 4. UNet
+`unet_config.yaml`
+### 4.1 Physics-Enhanced UNet — 
 
-## 3. Physics-Enhanced UNet — `mNDWS_UNetModel.ipynb`
+`mNDWS_UNetModel.ipynb`
 
 The main wildfire segmentation model.
 
@@ -125,21 +144,8 @@ The main wildfire segmentation model.
 - Test-Time Augmentation (TTA)
 - F1-by-tile-size diagnostics
 
----
 
-## 4. ResNet-18 UNet — `mNDWS_ResNet18UNet.ipynb`
-
-A stronger UNet variant using a ResNet-18 encoder.
-
-Benefits:
-
-- Better feature extraction
-- Stronger context modeling
-- Typically +2–4% AP over vanilla UNet
-
----
-
-## 5. EMA + Polyak Averaging — `mNDWS_EMA_Polyak.ipynb`
+### 4.2 EMA + Polyak Averaging — `mNDWS_EMA_Polyak.ipynb`
 
 Compares three weight types:
 
@@ -158,7 +164,7 @@ Notebook outputs:
   "test_f1": "..."
 }
 ```
-
+---
 ## 6. Visualization Tools
 
 Across notebooks you get:
