@@ -1,0 +1,6 @@
+PWD /Users/queclay/Documents/MSDS/DS6050/wildfire-spread-prediction/scratch/final-deliv
+INPUT /Users/queclay/Library/TinyTeX/texmf.cnf
+INPUT /Users/queclay/Library/TinyTeX/texmf-dist/web2c/texmf.cnf
+INPUT /Users/queclay/Library/TinyTeX/texmf-var/web2c/pdftex/pdflatex.fmt
+INPUT /Users/queclay/Documents/MSDS/DS6050/wildfire-spread-prediction/scratch/final-deliv/6050_25F_G4_wildfire_spread_prediction.tex
+OUTPUT 6050_25F_G4_wildfire_spread_prediction.log
