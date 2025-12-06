@@ -31,19 +31,19 @@ It includes:
 ## Repository Structure
 mNDWS/
 │
-├── mNDWS_DataPipeline.py # Data ingestion, TFRecord→NPZ, preprocessing, dataset loader
+├── mNDWS_DataPipeline.py # Data ingestion, TFRecord → NPZ conversion, preprocessing, dataset loader
 ├── mNDWS_LogRegModel.ipynb # Baseline logistic regression model
 ├── mNDWS_UNetModel.ipynb # Physics-enhanced UNet model
 ├── mNDWS_ResNet18UNet.ipynb # UNet with ResNet-18 encoder
 ├── mNDWS_EMA_Polyak.ipynb # EMA + Polyak comparison notebook
-| 
-├── requirements.txt
-├── logreg_config.yaml 
-├── unet_config.yaml 
-|
-├── scratch/ # contains information including intermediate results for transparency 
-├── outputs/ # contains finalized plots and data files
-└── README.md
+│
+├── requirements.txt # Python dependencies
+├── logreg_config.yaml # Configuration for logistic regression
+├── unet_config.yaml # Configuration for UNet models
+│
+├── scratch/ # Intermediate outputs, temporary data, experimental results
+├── outputs/ # Finalized plots, metrics, and generated data files
+└── README.md # This README file
 
 
 ---
