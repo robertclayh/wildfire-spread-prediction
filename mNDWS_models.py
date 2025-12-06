@@ -1,4 +1,16 @@
-# containing logistic and U-Net architectures
+"""Shared model + training utilities for the wildfire experiments.
+
+Exposes helpers to build the data pipeline, logistic regression baseline, and
+PhysicsPrior UNet bundle so notebooks and scripts can stay in sync.
+
+Example
+-------
+>>> import mNDWS_models as models
+>>> train_ds, val_ds, test_ds, *_ = models.pipeline_hookup(BATCH_SIZE=8)
+>>> lr_model, *_ = models.PixelLogReg_outputs(train_ds, meanC=models.meanC, stdC=models.stdC,
+...                                          train_loader=models.train_loader, device=models.device)
+"""
+
 # =========================================================
 # 0) Setup (Colab installs) + Utilities, Environment setup, deterministic seeds, device selection
 # =========================================================

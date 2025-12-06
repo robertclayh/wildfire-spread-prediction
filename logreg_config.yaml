@@ -1,0 +1,20 @@
+# logreg_config.yaml
+
+seed: 1337
+
+data:
+  batch_size: 16
+  channels_used: auto          # or explicit list, e.g. ["prev_fire", "ndvi", "temp", ...]
+
+model:
+  type: pixel_logreg
+  pos_weight: auto             # computed from the training loader
+
+optim:
+  lr: 1.0e-3
+  weight_decay: 0.0
+
+training:
+  epochs: 50
+  amp: false                   # not used, but kept for parity
+  ckpt: null                   # optional resume path

@@ -1,15 +1,19 @@
-#!/usr/bin/env python
-# coding: utf-8
+"""Data pipeline utilities for the Modified Next Day Wildfire Spread (mNDWS) dataset.
 
-# In[1]:
+This module handles NPZ tile discovery/creation, dataset splits, PyTorch loaders,
+and per-channel normalization statistics so notebooks and scripts can reuse the
+same ingestion logic.
+
+Example
+-------
+>>> import mNDWS_DataPipeline as dp
+>>> len(dp.train_ds), len(dp.val_ds), len(dp.test_ds)
+"""
 
 
 # =========================================================
 # 0) Setup (Colab installs) + Utilities
 # =========================================================
-# get_ipython().system('pip -q install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu121')
-# get_ipython().system('pip -q install numpy pandas scikit-learn einops tqdm')
-# get_ipython().system('pip -q install kagglehub tensorflow')
 
 import os, math, random, glob, sys
 from dataclasses import dataclass
@@ -53,9 +57,6 @@ else:
 use_cuda = device.type == "cuda"
 use_mps = device.type == "mps"
 _log_init(f"Device: {device}")
-
-
-# In[2]:
 
 
 # =========================================================
@@ -275,9 +276,6 @@ else:
     _log_init(f"Using existing NPZ tiles at {NPZ_ROOT} (found {len(glob.glob(os.path.join(NPZ_ROOT, '*.npz')))} files)")
 
 
-# In[3]:
-
-
 # =========================================================
 # 2) Dataset & configurable channel set (mNDWS)
 # =========================================================
@@ -452,9 +450,6 @@ def make_loader(ds, batch_size=16, upweight_positive=False, shuffle=False):
 train_loader = make_loader(train_ds, batch_size=16, upweight_positive=True)
 val_loader   = make_loader(val_ds,   batch_size=16)
 test_loader  = make_loader(test_ds,  batch_size=16)
-
-
-# In[4]:
 
 
 # =========================================================
