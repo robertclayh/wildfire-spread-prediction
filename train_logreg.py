@@ -11,6 +11,7 @@ import time
 
 #our packages
 import mNDWS_models as mndws_models
+import mNDWS_DataPipeline as mndws_dp
 
 device = mndws_models.device
 use_cuda = mndws_models.use_cuda
@@ -34,7 +35,7 @@ def main():
 
     channels = cfg["data"]["channels_used"]
     if channels == "auto":
-        channels = None
+        channels = mndws_dp.USE_CHANNELS
 
     #data pipeline
     train_ds, val_ds, test_ds, train_loader, val_loader, test_loader, meanC, stdC = mndws_models.pipeline_hookup(
