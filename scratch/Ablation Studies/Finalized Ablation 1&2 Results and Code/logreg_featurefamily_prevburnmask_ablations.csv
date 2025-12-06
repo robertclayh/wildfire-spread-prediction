@@ -1,0 +1,8 @@
+Model,Final Metrics (val/test),,AP,F1,IoU,thr~
+LR,"Raw, Baseline",Val,0.2544,0.4295,0.2735,0.781
+LR,"Raw, Baseline",Test,0.234,0.4131,0.2604,
+LR,Minus Wind,Test,0.2231,0.418,0.264,0.78
+LR,Minus Fuel,Test,0.2285,0.413,0.261,0.796
+LR,Minus Veg and Drought,Test,0.2213,0.416,0.262,0.792
+LR,Minus topography,Test,0.2335,0.408,0.256,0.788
+LR,Without Burn Mask,Test,0.0618,0.11,0.058,0.6
