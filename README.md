@@ -5,6 +5,7 @@ Machine learning models for **next-day wildfire spread prediction** using multim
 This repository implements a complete pipeline and several deep learning models for wildfire segmentation based on the **Modified Next-Day Wildfire Spread (mNDWS)** dataset.
 
 ---
+---
 
 ## Project Overview
 
@@ -27,6 +28,7 @@ It includes:
 - Full evaluation, threshold search, and visualization tools
 
 ---
+---
 
 ## Repository Structure
 mNDWS/
@@ -47,10 +49,39 @@ mNDWS/
 
 
 ---
-
-## 0. Set Up — `Requirements.txt`
-Contains information on packages needed to run code and their version number. 
 ---
+
+## 0. Set Up — 
+---
+`Requirements.txt` 
+
+Contains information on packages needed to run code and their version number. 
+
+---
+`logreg_config.yaml`
+
+Defines parameters needed for the logistic regression model including the seed, batch size, channels/hyperparameters selected as well as model, optimization and training specs. 
+
+---
+`logreg_config.yaml`
+
+Defines parameters needed for the logistic regression model including the seed, batch size, channels/hyperparameters selected as well as model, optimization and training specs.
+
+---
+`unet_config.yaml`
+Defines parameters needed for the unet model including the seed, batch size, channels/hyperparameters selected as well as loss, optimization and training specs.
+
+Sample code to access a .yaml file and check output: 
+
+```python
+import yaml
+
+with open('file_name.yaml', 'r') as file:
+    data = yaml.safe_load(file)
+
+print(data)
+```
+
 
 ---
 
@@ -83,39 +114,48 @@ This script is the **foundation** of the project.
   - PyTorch DataLoaders  
   - Normalization statistics
 
+
 ---
 
-## 2. Models — `mNDWS_models.py`
+## 2. Models — 
 
-A simple interpretability-first model:
+`mNDWS_models.py`
 
-- Loads NPZ tiles  
-- Flattens features  
----
+Shared model + training utilities for the wildfire experiments.
 
-## 3. Logistic Regression Baseline — 
+Exposes helpers to build the data pipeline, logistic regression baseline, and
+PhysicsPrior UNet bundle so notebooks and scripts can stay in sync.
 
-`logreg_config.yaml`
+Example:
+```
+>>> import mNDWS_models as models
+>>> train_ds, val_ds, test_ds, *_ = models.pipeline_hookup(BATCH_SIZE=8)
+>>> lr_model, *_ = models.PixelLogReg_outputs(train_ds, meanC=models.meanC, stdC=models.stdC,
+...                                          train_loader=models.train_loader, device=models.device) 
+```
+
+## 3. Logistic Regression 
 
 `train_logreg.py`
+ 
+Train the logistic-regression wildfire baseline.
 
-A simple interpretability-first model:
-  
-- Trains logistic regression
+Launch this script from the repo root to run the shared data pipeline,
+fit the pixel-level logistic regression model for a configurable number of
+epochs, and save the trained weights plus channel stats to an artifact file.
+Use `--config path/to/config.yaml` to pull hyperparameters from YAML or rely
+on the CLI flags (epochs, batch size, output path, checkpoint resume).
 
-`eval_models.py`
-- Reports logistic regression:
+Example
+-------
+Train for five epochs with CLI defaults and save to a scratch artifact:
 
-  - Average Precision (AP)  
-  - F1  
-  - Precision–Recall curves  
+    python train_logreg.py --epochs 5 --output outputs/logreg_smoke_test.pt
 
 ---
 ## 4. UNet
-`unet_config.yaml`
-### 4.1 Physics-Enhanced UNet — 
 
-`mNDWS_UNetModel.ipynb`
+### 4.1 Physics-Enhanced UNet — 
 
 The main wildfire segmentation model.
 
@@ -153,30 +193,45 @@ Compares three weight types:
 - **EMA (Exponential Moving Average)**
 - **Polyak (running average)**
 
-Notebook outputs:
+### 4.3 `train_unet.py`
 
-```json
-{
-  "variant": "RAW | EMA | Polyak",
-  "thr_plain": "...",
-  "thr_tta": "...",
-  "test_ap": "...",
-  "test_f1": "..."
-}
-```
+Train the PhysicsPrior UNet wildfire model.
+
+Run this script from the repo root to reuse the shared mNDWS data pipeline,
+fit the PhysicsPrior UNet with EMA/Polyak tracking, and save checkpoints plus
+channel stats. Provide `--config path/to/config.yaml` for full control or rely
+on the CLI defaults (epochs, batch size, output path, checkpoint resume).
+
+Example
+-------
+Train for a single quick epoch using the default config fallback:
+
+    python train_unet.py --epochs 1 --output outputs/unet_smoke_test.pt
+"""
 ---
 ## 5. Results - `eval_models.py`
+Unified evaluation entry point for the logistic regression and PhysicsPrior UNet models.
 
-Across notebooks you get:
+Can output the following information: 
+- AP, F1, IOU, and thresholds for test and training 
+- pr curve 
+- history curves
+- confusion matrices
+- logistic regression plots
+- unet plots
+- learnable parameters
+- avg. epoch wall time 
+- epoch time stdev 
+- training throughput
+- peak gpu memory
+- inference latency
 
-- False-color RGB composites  
-- Prediction overlays  
-- Ground-truth overlays  
-- TP / FP / FN diff-maps  
-- F1-by-fire-size plots  
-- Interactive inspection utilities
+Example
+-------
+Run evaluation for a saved UNet checkpoint and the logistic regression baseline:
 
-
+    python eval_models.py --config unet_config.yaml --ckpt outputs/unet_final.pt --model-type unet
+    python eval_models.py --config logreg_config.yaml --ckpt outputs/logreg_final.pt --model-type lr
 
 
 
